@@ -115,6 +115,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   private TableUpsertMetadataManager _tableUpsertMetadataManager;
   private List<String> _primaryKeyColumns;
   private String _timeColumnName;
+  private UpsertConfig.Strategy _defaultUpsertStrategy;
+  private List<UpsertConfig.PartialUpsertStrategy> _partialUpsertStrategies;
 
   public RealtimeTableDataManager(Semaphore segmentBuildSemaphore) {
     _segmentBuildSemaphore = segmentBuildSemaphore;
@@ -165,6 +167,11 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       Preconditions.checkState(!CollectionUtils.isEmpty(_primaryKeyColumns),
           "Primary key columns must be configured for upsert");
       _timeColumnName = tableConfig.getValidationConfig().getTimeColumnName();
+
+      if (_upsertMode == UpsertConfig.Mode.PARTIAL) {
+        _defaultUpsertStrategy = tableConfig.getUpsertConfig().getGlobalStrategy();
+        _partialUpsertStrategies = tableConfig.getUpsertConfig().getPartialUpsertStrategies();
+      }
     }
 
     if (consumerDir.exists()) {

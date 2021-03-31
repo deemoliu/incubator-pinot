@@ -1017,14 +1017,14 @@ public class TableConfigUtilsTest {
         new Schema.SchemaBuilder().setSchemaName(TABLE_NAME).addSingleValueDimension("myCol", FieldSpec.DataType.STRING)
             .build();
     TableConfig tableConfig = new TableConfigBuilder(TableType.OFFLINE).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL)).build();
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null)).build();
     try {
       TableConfigUtils.validateUpsertConfig(tableConfig, schema);
     } catch (Exception e) {
       Assert.assertEquals(e.getMessage(), "Upsert table is for realtime table only.");
     }
     tableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL)).build();
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null)).build();
     try {
       TableConfigUtils.validateUpsertConfig(tableConfig, schema);
     } catch (Exception e) {
@@ -1046,7 +1046,7 @@ public class TableConfigUtilsTest {
     streamConfigs
         .put("stream.kafka.decoder.class.name", "org.apache.pinot.plugin.stream.kafka.KafkaJSONMessageDecoder");
     tableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL)).setStreamConfigs(streamConfigs).build();
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null)).setStreamConfigs(streamConfigs).build();
     try {
       TableConfigUtils.validateUpsertConfig(tableConfig, schema);
     } catch (Exception e) {
@@ -1054,7 +1054,7 @@ public class TableConfigUtilsTest {
     }
     streamConfigs.put("stream.kafka.consumer.type", "simple");
     tableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL)).setStreamConfigs(streamConfigs).build();
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null)).setStreamConfigs(streamConfigs).build();
     try {
       TableConfigUtils.validateUpsertConfig(tableConfig, schema);
     } catch (Exception e) {
@@ -1062,7 +1062,7 @@ public class TableConfigUtilsTest {
           "Upsert table must use strict replica-group (i.e. strictReplicaGroup) based routing");
     }
     tableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL))
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null))
         .setRoutingConfig(new RoutingConfig(null, null, RoutingConfig.STRICT_REPLICA_GROUP_INSTANCE_SELECTOR_TYPE))
         .setStreamConfigs(streamConfigs).build();
     try {
@@ -1073,7 +1073,7 @@ public class TableConfigUtilsTest {
     StarTreeIndexConfig starTreeIndexConfig = new StarTreeIndexConfig(Lists.newArrayList("myCol"), null, Collections
         .singletonList(new AggregationFunctionColumnPair(AggregationFunctionType.COUNT, "myCol").toColumnName()), 10);
     tableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL))
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null))
         .setRoutingConfig(new RoutingConfig(null, null, RoutingConfig.STRICT_REPLICA_GROUP_INSTANCE_SELECTOR_TYPE))
         .setStarTreeIndexConfigs(Lists.newArrayList(starTreeIndexConfig)).setStreamConfigs(streamConfigs).build();
     try {

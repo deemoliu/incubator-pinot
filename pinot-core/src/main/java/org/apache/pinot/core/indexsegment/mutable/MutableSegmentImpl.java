@@ -148,6 +148,8 @@ public class MutableSegmentImpl implements MutableSegment {
   private final Map<String, FieldSpec> _newlyAddedPhysicalColumnsFieldMap = new ConcurrentHashMap();
 
   private final UpsertConfig.Mode _upsertMode;
+  private UpsertConfig.Strategy _defaultUpsertStrategy;
+  private List<UpsertConfig.PartialUpsertStrategy> _partialUpsertStrategies;
   private final PartitionUpsertMetadataManager _partitionUpsertMetadataManager;
   // The valid doc ids are maintained locally instead of in the upsert metadata manager because:
   // 1. There is only one consuming segment per partition, the committed segments do not need to modify the valid doc
@@ -367,10 +369,16 @@ public class MutableSegmentImpl implements MutableSegment {
       _partitionUpsertMetadataManager = config.getPartitionUpsertMetadataManager();
       _validDocIds = new ThreadSafeMutableRoaringBitmap();
       _validDocIndex = new ValidDocIndexReaderImpl(_validDocIds);
+      if (_upsertMode == UpsertConfig.Mode.PARTIAL) {
+        _defaultUpsertStrategy = config.getDefaultUpsertStrategy();
+        _partialUpsertStrategies = config.getPartialUpsertStrategies();
+      }
     } else {
       _partitionUpsertMetadataManager = null;
       _validDocIds = null;
       _validDocIndex = null;
+      _defaultUpsertStrategy = null;
+      _partialUpsertStrategies = null;
     }
   }
 

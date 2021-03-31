@@ -1205,6 +1205,8 @@ public class LLRealtimeSegmentDataManager extends RealtimeSegmentDataManager {
             .setStatsHistory(realtimeTableDataManager.getStatsHistory())
             .setAggregateMetrics(indexingConfig.isAggregateMetrics()).setNullHandlingEnabled(_nullHandlingEnabled)
             .setConsumerDir(consumerDir).setUpsertMode(tableConfig.getUpsertMode())
+            .setDefaultPartialUpsertStrategy(tableConfig.getUpsertConfig().getGlobalStrategy())
+            .setPartialUpsertStrategies(tableConfig.getUpsertConfig().getPartialUpsertStrategies())
             .setPartitionUpsertMetadataManager(partitionUpsertMetadataManager);
 
     // Create message decoder

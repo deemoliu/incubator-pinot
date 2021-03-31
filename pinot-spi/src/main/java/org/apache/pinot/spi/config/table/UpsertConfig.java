@@ -21,9 +21,9 @@ package org.apache.pinot.spi.config.table;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.pinot.spi.config.BaseJsonConfig;
-
 
 public class UpsertConfig extends BaseJsonConfig {
 
@@ -35,24 +35,43 @@ public class UpsertConfig extends BaseJsonConfig {
     OVERWRITE, IGNORE, INCREMENT, APPEND
   }
 
+  public class PartialUpsertStrategy {
+    private String _field;
+    private Strategy _strategy;
+
+    @JsonCreator
+    public PartialUpsertStrategy(@JsonProperty(value = "field", required = true) String field,
+        @JsonProperty(value = "strategy", required = true) Strategy strategy) {
+      _field = field;
+      _strategy = strategy;
+    }
+  }
+
   private final Mode _mode;
 
   private final Strategy _globalStrategy;
 
-  private final Map<String, String> _partialUpsertStrategies;
+  private final List<PartialUpsertStrategy> _partialUpsertStrategies;
 
   @JsonCreator
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
       @JsonProperty(value = "globalStrategy") Strategy globalStrategy,
-      @JsonProperty(value = "partialUpsertStrategies", required = true) Map<String, String> partialUpsertStrategies) {
+      @JsonProperty(value = "partialUpsertStrategies") List<PartialUpsertStrategy> partialUpsertStrategies) {
     Preconditions.checkArgument(mode != null, "Upsert mode must be configured");
-    Preconditions.checkArgument(mode != Mode.PARTIAL, "Partial upsert mode is not supported");
     _mode = mode;
     _globalStrategy = globalStrategy != null ? globalStrategy : Strategy.OVERWRITE;
-    _partialUpsertStrategies = partialUpsertStrategies;
+    _partialUpsertStrategies = partialUpsertStrategies != null ? partialUpsertStrategies : new ArrayList<PartialUpsertStrategy>();
   }
 
   public Mode getMode() {
     return _mode;
+  }
+
+  public Strategy getGlobalStrategy() {
+    return _globalStrategy;
+  }
+
+  public List<PartialUpsertStrategy> getPartialUpsertStrategies() {
+    return _partialUpsertStrategies;
   }
 }
