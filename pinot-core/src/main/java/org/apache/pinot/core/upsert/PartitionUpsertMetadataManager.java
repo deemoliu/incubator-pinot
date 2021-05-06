@@ -25,7 +25,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.common.metrics.ServerGauge;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.utils.LLCSegmentName;
+import org.apache.pinot.core.data.readers.PinotSegmentRecordReader;
+import org.apache.pinot.core.data.table.Record;
 import org.apache.pinot.core.realtime.impl.ThreadSafeMutableRoaringBitmap;
+import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,6 +137,33 @@ public class PartitionUpsertMetadataManager {
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
         _primaryKeyToRecordLocationMap.size());
     return validDocIds;
+  }
+
+  public RecordLocation findLastRecord(PrimaryKey primaryKey) {
+    RecordLocation currentRecordLocation = _primaryKeyToRecordLocationMap.get(primaryKey);
+    return currentRecordLocation;
+  }
+
+  public GenericRow lookupRecord(String segmentName, RecordInfo recordInfo, PinotSegmentRecordReader pinotSegmentRecordReader) {
+
+    RecordLocation currentRecordLocation = _primaryKeyToRecordLocationMap.get(recordInfo._primaryKey);
+    GenericRow oldrow = new GenericRow();
+    if (currentRecordLocation != null) {
+      // Existing primary key
+
+      // return the old record when the new timestamp is greater than or equal to the current timestamp.
+      // return the record location when there is a tie to keep the newer record.
+      if (recordInfo._timestamp >= currentRecordLocation.getTimestamp()) {
+        return oldrow;
+      } else {
+        // the new row is earlier than the record
+        oldrow = pinotSegmentRecordReader.getRecord(oldrow, recordInfo._docId);
+        return oldrow;
+      }
+    } else {
+      // New primary key
+      return oldrow;
+    }
   }
 
   /**

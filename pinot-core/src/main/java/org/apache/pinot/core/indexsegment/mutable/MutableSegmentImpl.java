@@ -38,6 +38,7 @@ import org.apache.pinot.common.metrics.ServerMeter;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.core.common.DataSource;
 import org.apache.pinot.core.data.partition.PartitionFunction;
+import org.apache.pinot.core.data.readers.PinotSegmentRecordReader;
 import org.apache.pinot.core.geospatial.serde.GeometrySerializer;
 import org.apache.pinot.core.io.readerwriter.PinotDataBufferMemoryManager;
 import org.apache.pinot.core.realtime.impl.RealtimeSegmentConfig;
@@ -71,8 +72,10 @@ import org.apache.pinot.core.segment.virtualcolumn.VirtualColumnContext;
 import org.apache.pinot.core.segment.virtualcolumn.VirtualColumnProvider;
 import org.apache.pinot.core.segment.virtualcolumn.VirtualColumnProviderFactory;
 import org.apache.pinot.core.startree.v2.StarTreeV2;
+import org.apache.pinot.core.upsert.PartialUpsertHandler;
 import org.apache.pinot.core.upsert.PartitionUpsertMetadataManager;
 import org.apache.pinot.core.upsert.PartitionUpsertMetadataManager.RecordInfo;
+import org.apache.pinot.core.upsert.RecordLocation;
 import org.apache.pinot.core.util.FixedIntArray;
 import org.apache.pinot.core.util.FixedIntArrayOffHeapIdMap;
 import org.apache.pinot.core.util.IdMap;
@@ -149,6 +152,8 @@ public class MutableSegmentImpl implements MutableSegment {
 
   private final UpsertConfig.Mode _upsertMode;
   private final PartitionUpsertMetadataManager _partitionUpsertMetadataManager;
+  private final PinotSegmentRecordReader _pinotSegmentRecordReader;
+
   // The valid doc ids are maintained locally instead of in the upsert metadata manager because:
   // 1. There is only one consuming segment per partition, the committed segments do not need to modify the valid doc
   //    ids for the consuming segment.
@@ -159,6 +164,8 @@ public class MutableSegmentImpl implements MutableSegment {
   //        the valid doc ids won't be updated.
   private final ThreadSafeMutableRoaringBitmap _validDocIds;
   private final ValidDocIndexReader _validDocIndex;
+
+  private final PartialUpsertHandler _partialUpsertHandler;
 
   public MutableSegmentImpl(RealtimeSegmentConfig config, @Nullable ServerMetrics serverMetrics) {
     _serverMetrics = serverMetrics;
@@ -367,10 +374,26 @@ public class MutableSegmentImpl implements MutableSegment {
       _partitionUpsertMetadataManager = config.getPartitionUpsertMetadataManager();
       _validDocIds = new ThreadSafeMutableRoaringBitmap();
       _validDocIndex = new ValidDocIndexReaderImpl(_validDocIds);
+
+      _partialUpsertHandler = new PartialUpsertHandler();
+
+
+      UpsertConfig.STRATEGY global = config.getGlobalUpsertStrategy();
+      Map<String, UpsertConfig.STRATEGY> partial = config.getPartialUpsertStrategy();
+      Map<String, String> custom = config.getCustomUpsertStrategy();
+      _partialUpsertHandler.init(global, partial, custom);
+
     } else {
       _partitionUpsertMetadataManager = null;
       _validDocIds = null;
       _validDocIndex = null;
+      _partialUpsertHandler = null;
+    }
+
+    try {
+      _pinotSegmentRecordReader = new PinotSegmentRecordReader(this);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to initiate PinotSegmentRecordReader", e);
     }
   }
 
@@ -471,6 +494,10 @@ public class MutableSegmentImpl implements MutableSegment {
 
     boolean canTakeMore;
     if (docId == _numDocsIndexed) {
+      if (isUpsertEnabled()) {
+        row = lookupAndMerge(row, docId);
+      }
+
       // New row
       addNewRow(row);
       // Update number of documents indexed at last to make the latest row queryable
@@ -497,6 +524,25 @@ public class MutableSegmentImpl implements MutableSegment {
 
   private boolean isUpsertEnabled() {
     return _upsertMode != UpsertConfig.Mode.NONE;
+  }
+
+  private GenericRow lookupAndMerge(GenericRow incomingRow, int docId) {
+    // try to merge the record with previous record
+    GenericRow previousRow = new GenericRow();
+    PrimaryKey primaryKey = incomingRow.getPrimaryKey(_schema.getPrimaryKeyColumns());
+    Object timeValue = incomingRow.getValue(_timeColumnName);
+    Preconditions.checkArgument(timeValue instanceof Comparable, "time column shall be comparable");
+    long timestamp = IngestionUtils.extractTimeValue((Comparable) timeValue);
+
+//    previousRow = _partitionUpsertMetadataManager.lookupRecord(_segmentName, new RecordInfo(primaryKey, docId, timestamp), _pinotSegmentRecordReader);
+
+    RecordLocation lastRecord = _partitionUpsertMetadataManager.findLastRecord(primaryKey);
+    if (timestamp >= lastRecord.getTimestamp()) {
+      previousRow = this.getRecord(lastRecord.getDocId(), previousRow);
+      return _partialUpsertHandler.merge(previousRow, incomingRow);
+    }
+
+    return incomingRow;
   }
 
   private void handleUpsert(GenericRow row, int docId) {
