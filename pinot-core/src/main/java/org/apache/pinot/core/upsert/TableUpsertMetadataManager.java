@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.core.data.manager.SegmentDataManager;
+import org.apache.pinot.core.data.manager.realtime.RealtimeTableDataManager;
 import org.apache.pinot.segment.local.upsert.PartitionUpsertMetadataManager;
 
 
@@ -33,14 +35,20 @@ public class TableUpsertMetadataManager {
   private final Map<Integer, PartitionUpsertMetadataManager> _partitionMetadataManagerMap = new ConcurrentHashMap<>();
   private final String _tableNameWithType;
   private final ServerMetrics _serverMetrics;
+  private final RealtimeTableDataManager _realtimeTableDataManager;
 
-  public TableUpsertMetadataManager(String tableNameWithType, ServerMetrics serverMetrics) {
+  public TableUpsertMetadataManager(String tableNameWithType, ServerMetrics serverMetrics, RealtimeTableDataManager realtimeTableDataManager) {
     _tableNameWithType = tableNameWithType;
     _serverMetrics = serverMetrics;
+    _realtimeTableDataManager = realtimeTableDataManager;
+  }
+
+  public SegmentDataManager getRealtimeTableDataManagerSegment(String segmentName) {
+    return _realtimeTableDataManager.acquireSegment(segmentName);
   }
 
   public PartitionUpsertMetadataManager getOrCreatePartitionManager(int partitionId) {
     return _partitionMetadataManagerMap.computeIfAbsent(partitionId,
-        k -> new PartitionUpsertMetadataManager(_tableNameWithType, k, _serverMetrics));
+        k -> new PartitionUpsertMetadataManager(_tableNameWithType, k, _serverMetrics, this));
   }
 }

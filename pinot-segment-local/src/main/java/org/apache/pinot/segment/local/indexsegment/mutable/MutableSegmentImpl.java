@@ -59,6 +59,7 @@ import org.apache.pinot.segment.local.segment.index.readers.ValidDocIndexReaderI
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnContext;
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProvider;
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProviderFactory;
+import org.apache.pinot.segment.local.upsert.PartialUpsertHandler;
 import org.apache.pinot.segment.local.upsert.PartitionUpsertMetadataManager;
 import org.apache.pinot.segment.local.utils.FixedIntArrayOffHeapIdMap;
 import org.apache.pinot.segment.local.utils.GeometrySerializer;
@@ -473,14 +474,21 @@ public class MutableSegmentImpl implements MutableSegment {
 
     boolean canTakeMore;
     if (docId == _numDocsIndexed) {
+
+      // Look up the full record, merge with the new record for partial upsert.
+      if (isPartialUpsertEnabled()) {
+        row = lookupAndMerge(row, docId);
+      }
+
+      if (isUpsertEnabled()) {
+        handleUpsert(row, docId);
+      }
+
       // New row
       addNewRow(row);
       // Update number of documents indexed at last to make the latest row queryable
       canTakeMore = _numDocsIndexed++ < _capacity;
 
-      if (isUpsertEnabled()) {
-        handleUpsert(row, docId);
-      }
     } else {
       Preconditions.checkArgument(!isUpsertEnabled(), "metrics aggregation cannot be used with upsert");
       assert _aggregateMetrics;
@@ -499,6 +507,24 @@ public class MutableSegmentImpl implements MutableSegment {
 
   private boolean isUpsertEnabled() {
     return _upsertMode != UpsertConfig.Mode.NONE;
+  }
+
+  private boolean isPartialUpsertEnabled() {
+    return _upsertMode == UpsertConfig.Mode.PARTIAL;
+  }
+
+  private GenericRow lookupAndMerge(GenericRow incomingRow, int docId) {
+    // get primary key and timestamp for the incoming record.
+    GenericRow previousRow = new GenericRow();
+    PrimaryKey primaryKey = incomingRow.getPrimaryKey(_schema.getPrimaryKeyColumns());
+    Object timeValue = incomingRow.getValue(_timeColumnName);
+    Preconditions.checkArgument(timeValue instanceof Comparable, "time column shall be comparable");
+    long timestamp = IngestionUtils.extractTimeValue((Comparable) timeValue);
+
+    // look up the previous full record with pk. Merge record if the incoming record is newer than previous record.
+    GenericRow newRow = _partitionUpsertMetadataManager.lookupAndMerge(incomingRow, docId, primaryKey, timestamp, this);
+    // return new record if no record found with the given pk.
+    return newRow;
   }
 
   private void handleUpsert(GenericRow row, int docId) {

@@ -26,6 +26,8 @@ import org.apache.pinot.common.metrics.ServerGauge;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.utils.LLCSegmentName;
 import org.apache.pinot.segment.local.realtime.impl.ThreadSafeMutableRoaringBitmap;
+import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,11 +62,25 @@ public class PartitionUpsertMetadataManager {
   private final String _tableNameWithType;
   private final int _partitionId;
   private final ServerMetrics _serverMetrics;
+  private final TableUpsertMetadataManager _realtimeTableDataManager;
+  private final PartialUpsertHandler _partialUpsertHandler;
 
-  public PartitionUpsertMetadataManager(String tableNameWithType, int partitionId, ServerMetrics serverMetrics) {
+  public PartitionUpsertMetadataManager(String tableNameWithType, int partitionId, ServerMetrics serverMetrics,
+      boolean isPartialUpsertEnabled, RealtimeTableDataManager realtimeTableDataManager) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _serverMetrics = serverMetrics;
+    _realtimeTableDataManager = realtimeTableDataManager;
+
+    if (isPartialUpsertEnabled) {
+      // init partial upsert handler with partial upsert config
+      _partialUpsertHandler = new PartialUpsertHandler();
+      _partialUpsertHandler
+          .init(config.getSchema(), config.getGlobalUpsertStrategy(), config.getPartialUpsertStrategy(),
+              config.getCustomUpsertStrategy());
+    } else {
+      _partialUpsertHandler = null;
+    }
   }
 
   public ConcurrentHashMap<PrimaryKey, RecordLocation> getPrimaryKeyToRecordLocationMap() {
@@ -117,9 +133,9 @@ public class PartitionUpsertMetadataManager {
             // Update the record location when getting a newer timestamp, or the timestamp is the same as the current
             // timestamp, but the segment has a larger sequence number (the segment is newer than the current segment).
             if (recordInfo._timestamp > currentRecordLocation.getTimestamp() || (
-                recordInfo._timestamp == currentRecordLocation.getTimestamp()
-                    && LLCSegmentName.isLowLevelConsumerSegmentName(segmentName)
-                    && LLCSegmentName.isLowLevelConsumerSegmentName(currentRecordLocation.getSegmentName())
+                recordInfo._timestamp == currentRecordLocation.getTimestamp() && LLCSegmentName
+                    .isLowLevelConsumerSegmentName(segmentName) && LLCSegmentName
+                    .isLowLevelConsumerSegmentName(currentRecordLocation.getSegmentName())
                     && LLCSegmentName.getSequenceNumber(segmentName) > LLCSegmentName
                     .getSequenceNumber(currentRecordLocation.getSegmentName()))) {
               currentRecordLocation.getValidDocIds().remove(currentRecordLocation.getDocId());
@@ -140,6 +156,36 @@ public class PartitionUpsertMetadataManager {
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
         _primaryKeyToRecordLocationMap.size());
     return validDocIds;
+  }
+
+  public RecordLocation findLastRecord(PrimaryKey primaryKey) {
+    RecordLocation currentRecordLocation = _primaryKeyToRecordLocationMap.get(primaryKey);
+    return currentRecordLocation;
+  }
+
+  public GenericRow lookupAndMerge(GenericRow incomingRow, int docId, PrimaryKey primaryKey, long timestamp,
+      IndexSegment indexSegment) {
+
+    // look up the previous full record with pk. Merge record if the incoming record is newer than previous record.
+    RecordLocation lastRecord = findLastRecord(primaryKey);
+    if (timestamp >= lastRecord.getTimestamp()) {
+
+      GenericRow previousRow = new GenericRow();
+
+      if (indexSegment.getSegmentName().equals(lastRecord.getSegmentName())) {
+        previousRow = indexSegment.getRecord(lastRecord.getDocId(), previousRow);
+        return _partialUpsertHandler.merge(previousRow, incomingRow);
+      } else {
+
+
+        // todo: the record might not in the current segment, so we need to look it up in another segment pointed by recordLocation
+
+        // dataManager and acquireSegment
+      }
+    }
+
+    // return new record if no record found with the given pk.
+    return incomingRow;
   }
 
   /**
