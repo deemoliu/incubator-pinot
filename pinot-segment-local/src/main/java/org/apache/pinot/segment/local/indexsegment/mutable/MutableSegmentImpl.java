@@ -163,6 +163,8 @@ public class MutableSegmentImpl implements MutableSegment {
   private final ThreadSafeMutableRoaringBitmap _validDocIds;
   private final ValidDocIndexReader _validDocIndex;
 
+  private final PartialUpsertHandler _partialUpsertHandler;
+
   public MutableSegmentImpl(RealtimeSegmentConfig config, @Nullable ServerMetrics serverMetrics) {
     _serverMetrics = serverMetrics;
     _tableNameWithType = config.getTableNameWithType();
@@ -501,6 +503,10 @@ public class MutableSegmentImpl implements MutableSegment {
     return _upsertMode != UpsertConfig.Mode.NONE;
   }
 
+  public boolean isPartialUpsertEnabled() {
+    return _upsertMode == UpsertConfig.Mode.PARTIAL;
+  }
+
   private void handleUpsert(GenericRow row, int docId) {
     PrimaryKey primaryKey = row.getPrimaryKey(_schema.getPrimaryKeyColumns());
     Object timeValue = row.getValue(_timeColumnName);
@@ -754,6 +760,10 @@ public class MutableSegmentImpl implements MutableSegment {
   @Override
   public ValidDocIndexReader getValidDocIndex() {
     return _validDocIndex;
+  }
+
+  public ThreadSafeMutableRoaringBitmap getValidDocIds() {
+    return _validDocIds;
   }
 
   @Override
