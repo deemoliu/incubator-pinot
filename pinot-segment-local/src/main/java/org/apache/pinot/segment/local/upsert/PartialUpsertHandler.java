@@ -54,6 +54,7 @@ public class PartialUpsertHandler {
     _tableNameWithType = tableNameWithType;
     for (Map.Entry<String, UpsertConfig.Strategy> entry : partialUpsertStrategies.entrySet()) {
       _column2Mergers.put(entry.getKey(), PartialUpsertMergerFactory.getMerger(entry.getValue()));
+
     }
   }
 
@@ -135,6 +136,21 @@ public class PartialUpsertHandler {
   public GenericRow merge(GenericRow previousRecord, GenericRow newRecord) {
     for (Map.Entry<String, PartialUpsertMerger> entry : _column2Mergers.entrySet()) {
       String column = entry.getKey();
+      // we have a map to store the fields for partial upsert. For field in the map
+      // (1) if previous record null, return new record.
+      // (2) if previous record not null. new record null.
+      // then put old value to new column
+      // (3) if previous record, not null, new record not null.
+      // then merge
+
+      // if field not in the mergeStrategies map, it will always use new value.
+
+      // for users behavior we only specify two field to use overwrite.
+      // {a1, b1, c1}
+      // {a2, b2, null} --> {a2, b2, c1} c1 should keep as it is.
+
+      // however it because {a2, b2, null}.
+
       if (!previousRecord.isNullValue(column)) {
         if (newRecord.isNullValue(column)) {
           newRecord.putValue(column, previousRecord.getValue(column));
