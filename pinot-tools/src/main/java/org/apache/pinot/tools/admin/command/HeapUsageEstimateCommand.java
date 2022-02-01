@@ -39,6 +39,8 @@ import picocli.CommandLine;
 @CommandLine.Command(name = "EstimateHeapSize")
 public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implements Command {
   private static final Logger LOGGER = LoggerFactory.getLogger(HeapUsageEstimateCommand.class.getName());
+  private static final String TAB = "\t\t";
+  private static final String NEW_LINE = "\n";
 
   @CommandLine.Option(names = {"-brokerHost"}, required = false, description = "host name for broker.")
   private String _brokerHost;
@@ -166,9 +168,6 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
     LOGGER.info("Executing command: " + toString());
 
     StringBuilder responseBuilder = new StringBuilder();
-    String TAB = "\t\t";
-    String NEW_LINE = "\n";
-    // todo: how to pass schema and config file
     // todo: columns stats
     // todo: fix checkstyle and others
     // todo: refactor variables
@@ -205,7 +204,7 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
     for (String primaryKey : primaryKeys) {
       FieldSpec.DataType dt = schema.getFieldSpecFor(primaryKey).getDataType();
       if (dt == FieldSpec.DataType.JSON || dt == FieldSpec.DataType.LIST || dt == FieldSpec.DataType.MAP) {
-        throw new Exception("Invalid data type for primary key columns");
+        throw new Exception("Not support data type for primary key columns");
       } else if (dt == FieldSpec.DataType.STRING) {
         bytesPerKey += _columnStats;
       } else {
@@ -213,9 +212,14 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
       }
     }
 
+    String retentionTimeValue = tableConfig.getValidationConfig().getRetentionTimeValue();
+    String retentionTimeUnit = tableConfig.getValidationConfig().getRetentionTimeUnit();
+
     responseBuilder.append("bytes per key:").append(TAB).append(bytesPerKey).append(NEW_LINE);
     responseBuilder.append("bytes per value:").append(TAB).append(bytesPerValue).append(NEW_LINE);
-    responseBuilder.append("message rate").append(TAB).append(_messageRate).append(NEW_LINE);
+    responseBuilder.append("message rate per second:").append(TAB).append(_messageRate).append(NEW_LINE);
+    responseBuilder.append("retention:").append(TAB).append(retentionTimeValue).append(retentionTimeUnit)
+        .append(NEW_LINE);
 
     String request;
     String urlString = _brokerProtocol + "://" + _brokerHost + ":" + _brokerPort + "/query";
@@ -233,7 +237,8 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
         sendRequest("POST", urlString, request, makeAuthHeader(makeAuthToken(_authToken, _user, _password))))
         .get("resultTable").get("rows").get(0).get(0);
 
-    responseBuilder.append("nums of record (skipUpsert):").append(TAB).append(recordNumsSkipUpsert.asText()).append(NEW_LINE);
+    responseBuilder.append("nums of record (skipUpsert):").append(TAB).append(recordNumsSkipUpsert.asText())
+        .append(NEW_LINE);
 
     return responseBuilder.toString();
   }
