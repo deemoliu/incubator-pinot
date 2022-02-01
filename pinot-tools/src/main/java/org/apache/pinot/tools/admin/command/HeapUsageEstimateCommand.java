@@ -171,8 +171,8 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
     // todo: columns stats
     // todo: fix checkstyle and others
     // todo: refactor variables
-    responseBuilder.append("schema file:").append(TAB).append(_schemaFile).append(NEW_LINE);
-    responseBuilder.append("table config file:").append(TAB).append(_tableConfigFile).append(NEW_LINE);
+    responseBuilder.append("schema file").append(TAB).append(_schemaFile).append(NEW_LINE);
+    responseBuilder.append("table config file").append(TAB).append(_tableConfigFile).append(NEW_LINE);
     responseBuilder.append("column stats").append(TAB).append(_columnStats).append(NEW_LINE);
 
     File schemaFile = new File(_schemaFile);
@@ -215,10 +215,10 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
     String retentionTimeValue = tableConfig.getValidationConfig().getRetentionTimeValue();
     String retentionTimeUnit = tableConfig.getValidationConfig().getRetentionTimeUnit();
 
-    responseBuilder.append("bytes per key:").append(TAB).append(bytesPerKey).append(NEW_LINE);
-    responseBuilder.append("bytes per value:").append(TAB).append(bytesPerValue).append(NEW_LINE);
-    responseBuilder.append("message rate per second:").append(TAB).append(_messageRate).append(NEW_LINE);
-    responseBuilder.append("retention:").append(TAB).append(retentionTimeValue).append(retentionTimeUnit)
+    responseBuilder.append("bytes per key").append(TAB).append(bytesPerKey).append(NEW_LINE);
+    responseBuilder.append("bytes per value").append(TAB).append(bytesPerValue).append(NEW_LINE);
+    responseBuilder.append("message rate per second").append(TAB).append(_messageRate).append(NEW_LINE);
+    responseBuilder.append("retention").append(TAB).append(retentionTimeValue).append(retentionTimeUnit)
         .append(NEW_LINE);
 
     String request;
@@ -230,15 +230,25 @@ public class HeapUsageEstimateCommand extends AbstractBaseAdminCommand implement
         sendRequest("POST", urlString, request, makeAuthHeader(makeAuthToken(_authToken, _user, _password))))
         .get("resultTable").get("rows").get(0).get(0);
 
-    responseBuilder.append("nums of record:").append(TAB).append(recordNums.asText()).append(NEW_LINE);
+    responseBuilder.append("nums of record").append(TAB).append(recordNums.asText()).append(NEW_LINE);
 
     request = JsonUtils.objectToString(Collections.singletonMap(Request.SQL, query + " option(skipUpsert=True)"));
     JsonNode recordNumsSkipUpsert = JsonUtils.stringToJsonNode(
         sendRequest("POST", urlString, request, makeAuthHeader(makeAuthToken(_authToken, _user, _password))))
         .get("resultTable").get("rows").get(0).get(0);
 
-    responseBuilder.append("nums of record (skipUpsert):").append(TAB).append(recordNumsSkipUpsert.asText())
+    responseBuilder.append("nums of record (skipUpsert)").append(TAB).append(recordNumsSkipUpsert.asText())
         .append(NEW_LINE);
+
+    if (recordNumsSkipUpsert.asLong() != 0) {
+      float upsertFrequency = recordNums.asLong() / recordNumsSkipUpsert.asLong();
+      float totalKeySpace = bytesPerKey * _messageRate * Integer.valueOf(retentionTimeValue) * 24 * 3600 * upsertFrequency / (1024*1024*1024);
+      float totalValueSpace = bytesPerValue * _messageRate * Integer.valueOf(retentionTimeValue) * 24 * 3600 * upsertFrequency / (1024*1024*1024);
+
+      responseBuilder.append("Upsert frequency").append(TAB).append(upsertFrequency).append(NEW_LINE);
+      responseBuilder.append("Estimated total key space").append(TAB).append(totalKeySpace).append(NEW_LINE);
+      responseBuilder.append("Estimated total value space").append(TAB).append(totalValueSpace).append(NEW_LINE);
+    }
 
     return responseBuilder.toString();
   }
