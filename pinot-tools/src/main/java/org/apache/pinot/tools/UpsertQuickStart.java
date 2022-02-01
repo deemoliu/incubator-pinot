@@ -117,6 +117,8 @@ public class UpsertQuickStart extends QuickStartBase {
     printStatus(Color.YELLOW, prettyPrintResponse(runner.runQuery(q1)));
     printStatus(Color.GREEN, "***************************************************");
 
+    printStatus(Color.YELLOW, runner.estimateTableSize(schemaFile.getAbsolutePath(), tableConfigFile.getAbsolutePath(), "meetupRsvp"));
+
     printStatus(Color.GREEN, "You can always go to http://localhost:9000 to play around in the query console");
   }
 }
