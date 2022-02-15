@@ -69,14 +69,14 @@ public class PinotTableRestletResourceTest {
 
     _createTableUrl = ControllerTestUtils.getControllerRequestURLBuilder().forTableCreate();
     _offlineBuilder.setTableName(OFFLINE_TABLE_NAME).setTimeColumnName("timeColumn").setTimeType("DAYS")
-        .setRetentionTimeUnit("DAYS").setRetentionTimeValue("5");
+        .setRetentionTimeUnit("DAYS").setRetentionTimeValue("5").setBrokerTenant("broker");
 
     // add schema for realtime table
     ControllerTestUtils.addDummySchema(REALTIME_TABLE_NAME);
     StreamConfig streamConfig = FakeStreamConfigUtils.getDefaultHighLevelStreamConfigs();
     _realtimeBuilder.setTableName(REALTIME_TABLE_NAME).setTimeColumnName("timeColumn").setTimeType("DAYS")
         .setRetentionTimeUnit("DAYS").setRetentionTimeValue("5").setSchemaName(REALTIME_TABLE_NAME)
-        .setStreamConfigs(streamConfig.getStreamConfigsMap());
+        .setStreamConfigs(streamConfig.getStreamConfigsMap()).setBrokerTenant("broker");
   }
 
   @Test

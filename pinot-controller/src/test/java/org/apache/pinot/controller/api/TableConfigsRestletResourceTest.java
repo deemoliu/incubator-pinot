@@ -69,12 +69,12 @@ public class TableConfigsRestletResourceTest {
   private TableConfigBuilder getBaseTableConfigBuilder(String tableName, TableType tableType) {
     if (tableType == TableType.OFFLINE) {
       return new TableConfigBuilder(TableType.OFFLINE).setTableName(tableName).setTimeColumnName("timeColumn")
-          .setRetentionTimeUnit("DAYS").setRetentionTimeValue("50");
+          .setRetentionTimeUnit("DAYS").setRetentionTimeValue("50").setBrokerTenant("broker");
     } else {
       StreamConfig streamConfig = FakeStreamConfigUtils.getDefaultLowLevelStreamConfigs();
       return new TableConfigBuilder(TableType.REALTIME).setTableName(tableName).setTimeColumnName("timeColumn")
           .setRetentionTimeUnit("DAYS").setLLC(true).setRetentionTimeValue("5")
-          .setStreamConfigs(streamConfig.getStreamConfigsMap());
+          .setStreamConfigs(streamConfig.getStreamConfigsMap()).setBrokerTenant("broker");
     }
   }
 

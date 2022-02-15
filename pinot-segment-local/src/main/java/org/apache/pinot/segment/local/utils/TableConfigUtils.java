@@ -48,6 +48,7 @@ import org.apache.pinot.spi.config.table.StarTreeIndexConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableTaskConfig;
 import org.apache.pinot.spi.config.table.TableType;
+import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.TierConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.config.table.ingestion.BatchIngestionConfig;
@@ -367,8 +368,8 @@ public final class TableConfigUtils {
           try {
             CronScheduleBuilder.cronSchedule(cronExprStr);
           } catch (Exception e) {
-            throw new IllegalStateException(String.format(
-                "Task %s contains an invalid cron schedule: %s", taskTypeConfigName, cronExprStr), e);
+            throw new IllegalStateException(
+                String.format("Task %s contains an invalid cron schedule: %s", taskTypeConfigName, cronExprStr), e);
           }
         }
         // Task Specific validation for REALTIME_TO_OFFLINE_TASK_TYPE
@@ -382,15 +383,14 @@ public final class TableConfigUtils {
           TimeUtils.convertPeriodToMillis(taskTypeConfig.getOrDefault("bucketTimePeriod", "1d"));
           TimeUtils.convertPeriodToMillis(taskTypeConfig.getOrDefault("roundBucketTimePeriod", "1s"));
           // check mergeType is correct
-          Preconditions.checkState(ImmutableSet.of("CONCAT", "ROLLUP", "DEDUP").contains(
-              taskTypeConfig.getOrDefault("mergeType", "CONCAT").toUpperCase()),
+          Preconditions.checkState(ImmutableSet.of("CONCAT", "ROLLUP", "DEDUP")
+                  .contains(taskTypeConfig.getOrDefault("mergeType", "CONCAT").toUpperCase()),
               "MergeType must be one of [CONCAT, ROLLUP, DEDUP]!");
           // check no mis-configured columns
           Set<String> columnNames = schema.getColumnNames();
           for (Map.Entry<String, String> entry : taskTypeConfig.entrySet()) {
             if (entry.getKey().endsWith(".aggregationType")) {
-              Preconditions.checkState(
-                  columnNames.contains(StringUtils.removeEnd(entry.getKey(), ".aggregationType")),
+              Preconditions.checkState(columnNames.contains(StringUtils.removeEnd(entry.getKey(), ".aggregationType")),
                   String.format("Column \"%s\" not found in schema!", entry.getKey()));
               Preconditions.checkState(ImmutableSet.of("SUM", "MAX", "MIN").contains(entry.getValue().toUpperCase()),
                   String.format("Column \"%s\" has invalid aggregate type: %s", entry.getKey(), entry.getValue()));
@@ -871,6 +871,21 @@ public final class TableConfigUtils {
       throw new IllegalStateException(String.format(
           "Time column names are different for table: %s! Offline time column name: %s. Realtime time column name: %s",
           rawTableName, offlineTimeColumnName, realtimeTimeColumnName));
+    }
+    TenantConfig offlineTenantConfig = offlineTableConfig.getTenantConfig();
+    TenantConfig realtimeTenantConfig = realtimeTableConfig.getTenantConfig();
+    String offlineBroker = offlineTenantConfig.getBroker();
+    String realtimeBroker = realtimeTenantConfig.getBroker();
+    if (offlineBroker == null || realtimeBroker == null) {
+      throw new IllegalArgumentException(String.format(
+          "'Broker' cannot be null for table: %s! Offline broker tenant name: %s. Realtime broker tenant name: %s",
+          rawTableName, offlineBroker, realtimeBroker));
+    }
+
+    if (!offlineBroker.equals(realtimeBroker)) {
+      throw new IllegalArgumentException(String.format(
+          "Broker Tenants are different for table: %s! Offline broker tenant name: %s. Realtime broker tenant name: %s",
+          rawTableName, offlineBroker, realtimeBroker));
     }
   }
 
