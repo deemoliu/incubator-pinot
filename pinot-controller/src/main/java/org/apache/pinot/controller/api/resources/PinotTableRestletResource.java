@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
@@ -62,6 +63,7 @@ import org.apache.pinot.common.exception.InvalidConfigException;
 import org.apache.pinot.common.exception.SchemaNotFoundException;
 import org.apache.pinot.common.exception.TableNotFoundException;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
+import org.apache.pinot.common.metadata.segment.SegmentZKMetadata;
 import org.apache.pinot.common.metrics.ControllerMeter;
 import org.apache.pinot.common.metrics.ControllerMetrics;
 import org.apache.pinot.controller.ControllerConf;
@@ -589,6 +591,23 @@ public class PinotTableRestletResource {
         // For dry-run or rebalance with downtime, directly return the rebalance result as it should return immediately
         return _pinotHelixResourceManager.rebalanceTable(tableNameWithType, rebalanceConfig);
       } else {
+        // Make sure the all the sealed segment in realtime table has deepstore url so rebalance won't time out.
+        if (tableTypeStr.equals(TableType.REALTIME)) {
+          List<String> segments = _pinotHelixResourceManager.getSegmentsFor(tableNameWithType, false);
+          ZkHelixPropertyStore<ZNRecord> propertyStore = _pinotHelixResourceManager.getPropertyStore();
+          for (String segmentName: segments) {
+            SegmentZKMetadata segmentZKMetadata =
+                ZKMetadataProvider.getSegmentZKMetadata(propertyStore, tableNameWithType, segmentName);
+            if (segmentZKMetadata != null) {
+              Map<String, String> segmentMetadata = segmentZKMetadata.toMap();
+              if (segmentMetadata.get("segment.realtime.status") == "DONE" && segmentMetadata.get("segment.realtime.download.url") == null) {
+                throw new ControllerApplicationException(LOGGER, "Realtime table sealed segments should have deepstore url before rebalance",
+                    Response.Status.INTERNAL_SERVER_ERROR);
+              }
+            }
+          }
+        }
+
         // Make a dry-run first to get the target assignment
         rebalanceConfig.setProperty(RebalanceConfigConstants.DRY_RUN, true);
         RebalanceResult dryRunResult = _pinotHelixResourceManager.rebalanceTable(tableNameWithType, rebalanceConfig);
