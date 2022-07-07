@@ -55,14 +55,27 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("Column for upsert comparison, default to time column")
   private final String _comparisonColumn;
 
+  @JsonPropertyDescription("Upsert ttl time unit.")
+  private final String _ttlTimeUnit;
+
+  @JsonPropertyDescription("Upsert ttl time value.")
+  private final String _ttlTimeValue;
+
   @JsonCreator
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
       @JsonProperty("partialUpsertStrategies") @Nullable Map<String, Strategy> partialUpsertStrategies,
       @JsonProperty("defaultPartialUpsertStrategy") @Nullable Strategy defaultPartialUpsertStrategy,
       @JsonProperty("comparisonColumn") @Nullable String comparisonColumn,
-      @JsonProperty("hashFunction") @Nullable HashFunction hashFunction) {
+      @JsonProperty("hashFunction") @Nullable HashFunction hashFunction,
+      @JsonProperty("ttlTimeUnit") @Nullable String ttlTimeUnit,
+      @JsonProperty("ttlTimeValue") @Nullable String ttlTimeValue) {
     Preconditions.checkArgument(mode != null, "Upsert mode must be configured");
     _mode = mode;
+
+    // Fixme: use TableRetentionValidator to get values
+    // Fixme: if these value appeared, we don't need comparisonColumn.
+    _ttlTimeUnit = ttlTimeUnit;
+    _ttlTimeValue = ttlTimeValue;
 
     if (mode == Mode.PARTIAL) {
       _partialUpsertStrategies = partialUpsertStrategies != null ? partialUpsertStrategies : new HashMap<>();
@@ -96,5 +109,15 @@ public class UpsertConfig extends BaseJsonConfig {
 
   public String getComparisonColumn() {
     return _comparisonColumn;
+  }
+
+  @Nullable
+  public String getTtlTimeUnit() {
+    return _ttlTimeUnit;
+  }
+
+  @Nullable
+  public String getTtlTimeValue() {
+    return _ttlTimeValue;
   }
 }
