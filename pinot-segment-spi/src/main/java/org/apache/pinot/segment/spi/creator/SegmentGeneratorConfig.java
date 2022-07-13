@@ -47,6 +47,7 @@ import org.apache.pinot.spi.config.table.SegmentZKPropsConfig;
 import org.apache.pinot.spi.config.table.StarTreeIndexConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TimestampIndexGranularity;
+import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.data.DateTimeFieldSpec;
 import org.apache.pinot.spi.data.DateTimeFormatSpec;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -116,6 +117,7 @@ public class SegmentGeneratorConfig implements Serializable {
   private boolean _failOnEmptySegment = false;
   private boolean _optimizeDictionaryForMetrics = false;
   private double _noDictionarySizeRatioThreshold = DEFAULT_NO_DICTIONARY_SIZE_RATIO_THRESHOLD;
+  private boolean _isUpsertTTLEnabled = false;
 
   // constructed from FieldConfig
   private Map<String, Map<String, String>> _columnProperties = new HashMap<>();
@@ -151,6 +153,16 @@ public class SegmentGeneratorConfig implements Serializable {
       timeColumnName = tableConfig.getValidationConfig().getTimeColumnName();
     }
     setTime(timeColumnName, schema);
+
+    // read TTL value and unit from upsertConfig.
+    UpsertConfig upsertConfig = tableConfig.getUpsertConfig();
+    if (upsertConfig != null) {
+      String ttlTimeValue = upsertConfig.getTtlTimeValue();
+      String ttlTimeUnit = upsertConfig.getTtlTimeUnit();
+      if (ttlTimeUnit != null && ttlTimeValue != null) {
+        _isUpsertTTLEnabled = true;
+      }
+    }
 
     IndexingConfig indexingConfig = tableConfig.getIndexingConfig();
     if (indexingConfig != null) {
@@ -814,5 +826,9 @@ public class SegmentGeneratorConfig implements Serializable {
 
   public void setSegmentZKPropsConfig(SegmentZKPropsConfig segmentZKPropsConfig) {
     _segmentZKPropsConfig = segmentZKPropsConfig;
+  }
+
+  public boolean isUpsertTTLEnabled() {
+    return _isUpsertTTLEnabled;
   }
 }
