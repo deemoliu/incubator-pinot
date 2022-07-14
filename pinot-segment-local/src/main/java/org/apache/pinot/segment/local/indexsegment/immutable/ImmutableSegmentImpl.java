@@ -21,6 +21,7 @@ package org.apache.pinot.segment.local.indexsegment.immutable;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +45,7 @@ import org.apache.pinot.segment.spi.index.reader.InvertedIndexReader;
 import org.apache.pinot.segment.spi.index.startree.StarTreeV2;
 import org.apache.pinot.segment.spi.store.SegmentDirectory;
 import org.apache.pinot.spi.data.readers.GenericRow;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -212,6 +214,13 @@ public class ImmutableSegmentImpl implements ImmutableSegment {
   @Override
   public List<StarTreeV2> getStarTrees() {
     return _starTreeIndexContainer != null ? _starTreeIndexContainer.getStarTrees() : null;
+  }
+
+  @Nullable
+  public void setValidDocIds(ImmutableRoaringBitmap validDocIds) {
+    for (int docId: validDocIds.toArray()) {
+      _validDocIds.add(docId);
+    }
   }
 
   @Nullable
