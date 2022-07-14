@@ -424,7 +424,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
             _tableNameWithType));
     PartitionUpsertMetadataManager partitionUpsertMetadataManager =
         _tableUpsertMetadataManager.getOrCreatePartitionManager(partitionGroupId);
-    ThreadSafeMutableRoaringBitmap validDocIds = new ThreadSafeMutableRoaringBitmap();
+
+    ThreadSafeMutableRoaringBitmap validDocIds = immutableSegment.getValidDocIds();
     immutableSegment.enableUpsert(partitionUpsertMetadataManager, validDocIds);
 
     Map<String, PinotSegmentColumnReader> columnToReaderMap = new HashMap<>();

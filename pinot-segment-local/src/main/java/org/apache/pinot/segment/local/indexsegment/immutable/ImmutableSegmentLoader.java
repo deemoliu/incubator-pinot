@@ -34,6 +34,7 @@ import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnContext
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProvider;
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProviderFactory;
 import org.apache.pinot.segment.local.startree.v2.store.StarTreeIndexContainer;
+import org.apache.pinot.segment.local.upsert.validdocs.ValidDocsSnapshotContainer;
 import org.apache.pinot.segment.spi.ColumnMetadata;
 import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.converter.SegmentFormatConverter;
@@ -42,6 +43,7 @@ import org.apache.pinot.segment.spi.creator.SegmentVersion;
 import org.apache.pinot.segment.spi.index.IndexingOverrides;
 import org.apache.pinot.segment.spi.index.column.ColumnIndexContainer;
 import org.apache.pinot.segment.spi.index.metadata.SegmentMetadataImpl;
+import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoader;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoaderContext;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoaderRegistry;
@@ -214,6 +216,14 @@ public class ImmutableSegmentLoader {
 
     ImmutableSegmentImpl segment =
         new ImmutableSegmentImpl(segmentDirectory, segmentMetadata, indexContainerMap, starTreeIndexContainer);
+
+    // Load valid doc snapshot if exists
+    ValidDocsSnapshotContainer validDocsSnapshotContainer;
+    if (segmentMetadata.getName() != null) {
+      validDocsSnapshotContainer = new ValidDocsSnapshotContainer(SegmentDirectoryPaths.findSegmentDirectory(localIndexDir), segmentMetadata,indexLoadingConfig.getReadMode());
+      segment.setValidDocIds(validDocsSnapshotContainer.getValidDocsSnapshot());
+    }
+
     LOGGER.info("Successfully loaded segment: {} with SegmentDirectory", segmentName);
     return segment;
   }
