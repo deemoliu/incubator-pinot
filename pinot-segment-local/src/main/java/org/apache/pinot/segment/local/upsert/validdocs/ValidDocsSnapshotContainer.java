@@ -20,10 +20,9 @@ package org.apache.pinot.segment.local.upsert.validdocs;
 
 import com.google.common.base.Preconditions;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
-import java.io.File;
-import java.util.Map;
 import org.apache.pinot.segment.spi.V1Constants;
 import org.apache.pinot.segment.spi.index.metadata.SegmentMetadataImpl;
 import org.apache.pinot.segment.spi.memory.PinotDataBuffer;
