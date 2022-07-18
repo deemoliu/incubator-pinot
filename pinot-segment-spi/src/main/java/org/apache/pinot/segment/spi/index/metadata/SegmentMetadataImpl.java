@@ -89,6 +89,8 @@ public class SegmentMetadataImpl implements SegmentMetadata {
   private String _startOffset;
   private String _endOffset;
 
+  private boolean _upsertTTLEnabled;
+
   // TODO: No need to cache this. We cannot modify the metadata if it is from a input stream
   // Caching properties around can be costly when the number of segments is high according to the
   // finding in PR #2996. So for now, caching is used only when initializing from input streams.
@@ -262,6 +264,9 @@ public class SegmentMetadataImpl implements SegmentMetadata {
 
     // Set custom configs from metadata properties
     setCustomConfigs(segmentMetadataPropertiesConfiguration, _customMap);
+
+    // Set upsertTTLEnabled
+    _upsertTTLEnabled = segmentMetadataPropertiesConfiguration.getBoolean(Segment.SEGMENT_USE_TTL, false);
   }
 
   private static void setCustomConfigs(Configuration segmentMetadataPropertiesConfiguration,
@@ -401,6 +406,10 @@ public class SegmentMetadataImpl implements SegmentMetadata {
   @Override
   public Map<String, ColumnMetadata> getColumnMetadataMap() {
     return _columnMetadataMap;
+  }
+
+  public boolean isUpsertTTLEnabled() {
+    return _upsertTTLEnabled;
   }
 
   @Override

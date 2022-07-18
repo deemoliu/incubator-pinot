@@ -218,7 +218,7 @@ public class ImmutableSegmentLoader {
 
     // Load valid doc snapshot if exists
     ValidDocsSnapshotContainer validDocsSnapshotContainer;
-    if (localIndexDir != null) {
+    if (segmentMetadata.isUpsertTTLEnabled() && localIndexDir != null) {
       validDocsSnapshotContainer =
           new ValidDocsSnapshotContainer(SegmentDirectoryPaths.findSegmentDirectory(localIndexDir), segmentMetadata);
       segment.setValidDocIds(validDocsSnapshotContainer.getValidDocsSnapshot());

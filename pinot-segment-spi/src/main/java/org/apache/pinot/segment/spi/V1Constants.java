@@ -76,6 +76,7 @@ public class V1Constants {
       public static final String DATETIME_COLUMNS = "segment.datetime.column.names";
       public static final String SEGMENT_TOTAL_DOCS = "segment.total.docs";
       public static final String SEGMENT_PADDING_CHARACTER = "segment.padding.character";
+      public static final String SEGMENT_USE_TTL = "segment.use.ttl";
 
       public static final String CUSTOM_SUBSET = "custom";
 
