@@ -18,7 +18,6 @@
  */
 package org.apache.pinot.segment.local.upsert.validdocs;
 
-import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -26,29 +25,28 @@ import java.nio.ByteOrder;
 import org.apache.pinot.segment.spi.V1Constants;
 import org.apache.pinot.segment.spi.index.metadata.SegmentMetadataImpl;
 import org.apache.pinot.segment.spi.memory.PinotDataBuffer;
-import org.apache.pinot.spi.utils.ReadMode;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
 
 public class ValidDocsSnapshotContainer implements Closeable {
   private final PinotDataBuffer _dataBuffer;
-  private final ImmutableRoaringBitmap _validDocsSnapshot;
+  private final MutableRoaringBitmap _validDocsSnapshot;
 
-  public ValidDocsSnapshotContainer(File segmentDirectory, SegmentMetadataImpl segmentMetadata, ReadMode readMode)
+  public ValidDocsSnapshotContainer(File segmentDirectory, SegmentMetadataImpl segmentMetadata)
       throws IOException {
     String validDocsFileName = segmentMetadata.getName() + V1Constants.Indexes.VALID_DOCS_FILE_EXTENSION;
     File validDocsFile = new File(segmentDirectory, validDocsFileName);
 
-    if (readMode == ReadMode.heap) {
-      _dataBuffer = PinotDataBuffer.loadFile(validDocsFile, 0, validDocsFile.length(), ByteOrder.LITTLE_ENDIAN,
-          "Valid Doc Snapshot data buffer");
-    } else {
-      _dataBuffer = PinotDataBuffer.mapFile(validDocsFile, true, 0, validDocsFile.length(), ByteOrder.LITTLE_ENDIAN,
-          "Valid Doc Snapshot data buffer");
-    }
+    _dataBuffer = PinotDataBuffer.mapFile(validDocsFile, true, 0, validDocsFile.length(), ByteOrder.LITTLE_ENDIAN,
+        "Valid Doc Snapshot data buffer");
 
-    Preconditions.checkState(validDocsFile.exists(), "Valid docs snapshots file does not exist");
-    _validDocsSnapshot = new ImmutableRoaringBitmap(_dataBuffer.toDirectByteBuffer(0, (int) _dataBuffer.size()));
+    if (!validDocsFile.exists()) {
+      _validDocsSnapshot = new MutableRoaringBitmap();
+    } else {
+      _validDocsSnapshot = new ImmutableRoaringBitmap(_dataBuffer.toDirectByteBuffer(0, (int) _dataBuffer.size()))
+          .toMutableRoaringBitmap();
+    }
   }
 
   public ImmutableRoaringBitmap getValidDocsSnapshot() {

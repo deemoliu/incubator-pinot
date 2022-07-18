@@ -284,10 +284,14 @@ public class SegmentIndexCreationDriverImpl implements SegmentIndexCreationDrive
       // Write the index files to disk
       _indexCreator.setSegmentName(_segmentName);
       _indexCreator.seal();
-      _validDocsSnapshotCreator.seal();
+      if (_upsertTTLEnabled) {
+        _validDocsSnapshotCreator.seal();
+      }
     } finally {
       _indexCreator.close();
-      _validDocsSnapshotCreator.close();
+      if (_upsertTTLEnabled) {
+        _validDocsSnapshotCreator.close();
+      }
     }
     LOGGER.info("Finished segment seal!");
 
