@@ -68,7 +68,7 @@ public class PinotResourceManagerTest {
     realtimeTableConfig.getValidationConfig().setReplicasPerPartition(NUM_REPLICAS_STRING);
     realtimeTableConfig.getValidationConfig()
         .setReplicaGroupStrategyConfig(new ReplicaGroupStrategyConfig(PARTITION_COLUMN, 1));
-    realtimeTableConfig.setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null, null, null));
+    realtimeTableConfig.setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null, null, null, false));
     TEST_INSTANCE.getHelixResourceManager().addTable(realtimeTableConfig);
   }
 
@@ -86,8 +86,8 @@ public class PinotResourceManagerTest {
             .setSchemaName(dummySchema.getSchemaName()).build();
     try {
       TEST_INSTANCE.getHelixResourceManager().addTable(invalidRealtimeTableConfig);
-      Assert.fail(
-          "Table creation should have thrown exception due to missing replicasPerPartition in validation config");
+      Assert
+          .fail("Table creation should have thrown exception due to missing replicasPerPartition in validation config");
     } catch (Exception e) {
       // expected
     }
@@ -105,8 +105,8 @@ public class PinotResourceManagerTest {
         .updateZkMetadata(OFFLINE_TABLE_NAME + "_OFFLINE", segmentZKMetadata, 0));
 
     // Set segment ZK metadata
-    Assert.assertTrue(TEST_INSTANCE.getHelixResourceManager()
-        .updateZkMetadata(OFFLINE_TABLE_NAME + "_OFFLINE", segmentZKMetadata));
+    Assert.assertTrue(
+        TEST_INSTANCE.getHelixResourceManager().updateZkMetadata(OFFLINE_TABLE_NAME + "_OFFLINE", segmentZKMetadata));
 
     // Update ZK metadata
     Assert.assertEquals(TEST_INSTANCE.getHelixResourceManager()
@@ -138,16 +138,16 @@ public class PinotResourceManagerTest {
           .addNewSegment(OFFLINE_TABLE_NAME, SegmentMetadataMockUtils.mockSegmentMetadata(OFFLINE_TABLE_NAME),
               "downloadUrl");
     }
-    IdealState idealState = TEST_INSTANCE.getHelixAdmin()
-        .getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
+    IdealState idealState =
+        TEST_INSTANCE.getHelixAdmin().getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
     Set<String> segments = idealState.getPartitionSet();
     Assert.assertEquals(segments.size(), 2);
 
     for (String segmentName : segments) {
       TEST_INSTANCE.getHelixResourceManager().deleteSegment(offlineTableName, segmentName);
     }
-    idealState = TEST_INSTANCE.getHelixAdmin()
-        .getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
+    idealState =
+        TEST_INSTANCE.getHelixAdmin().getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
     Assert.assertEquals(idealState.getPartitionSet().size(), 0);
 
     // Concurrent segment deletion
@@ -167,8 +167,8 @@ public class PinotResourceManagerTest {
     addSegmentExecutor.shutdown();
     addSegmentExecutor.awaitTermination(1, TimeUnit.MINUTES);
 
-    idealState = TEST_INSTANCE.getHelixAdmin()
-        .getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
+    idealState =
+        TEST_INSTANCE.getHelixAdmin().getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
     Assert.assertEquals(idealState.getPartitionSet().size(), 30);
 
     ExecutorService deleteSegmentExecutor = Executors.newFixedThreadPool(3);
@@ -183,8 +183,8 @@ public class PinotResourceManagerTest {
     deleteSegmentExecutor.shutdown();
     deleteSegmentExecutor.awaitTermination(1, TimeUnit.MINUTES);
 
-    idealState = TEST_INSTANCE.getHelixAdmin()
-        .getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
+    idealState =
+        TEST_INSTANCE.getHelixAdmin().getResourceIdealState(TEST_INSTANCE.getHelixClusterName(), offlineTableName);
     Assert.assertEquals(idealState.getPartitionSet().size(), 0);
   }
 
@@ -208,9 +208,8 @@ public class PinotResourceManagerTest {
     segment2PartitionId.put(partition0Segment1, 0);
     segment2PartitionId.put(partition1Segment1, 1);
 
-    IdealState idealState = TEST_INSTANCE.getHelixAdmin()
-        .getResourceIdealState(TEST_INSTANCE.getHelixClusterName(),
-            TableNameBuilder.REALTIME.tableNameWithType(REALTIME_TABLE_NAME));
+    IdealState idealState = TEST_INSTANCE.getHelixAdmin().getResourceIdealState(TEST_INSTANCE.getHelixClusterName(),
+        TableNameBuilder.REALTIME.tableNameWithType(REALTIME_TABLE_NAME));
     Set<String> segments = idealState.getPartitionSet();
     Assert.assertEquals(segments.size(), 5);
     Assert.assertTrue(segments.contains(partition0Segment0));

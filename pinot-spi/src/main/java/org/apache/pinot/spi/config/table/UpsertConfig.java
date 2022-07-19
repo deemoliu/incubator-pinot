@@ -58,14 +58,6 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("whether use snapshot for fast upsert metadata recovery")
   private boolean _useSnapshot;
 
-  public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
-      @JsonProperty("partialUpsertStrategies") @Nullable Map<String, Strategy> partialUpsertStrategies,
-      @JsonProperty("defaultPartialUpsertStrategy") @Nullable Strategy defaultPartialUpsertStrategy,
-      @JsonProperty("comparisonColumn") @Nullable String comparisonColumn,
-      @JsonProperty("hashFunction") @Nullable HashFunction hashFunction) {
-    this(mode, partialUpsertStrategies, defaultPartialUpsertStrategy, comparisonColumn, hashFunction, false);
-  }
-
   @JsonCreator
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
       @JsonProperty("partialUpsertStrategies") @Nullable Map<String, Strategy> partialUpsertStrategies,
@@ -87,7 +79,6 @@ public class UpsertConfig extends BaseJsonConfig {
 
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction == null ? HashFunction.NONE : hashFunction;
-
     _useSnapshot = useSnapshot;
   }
 
