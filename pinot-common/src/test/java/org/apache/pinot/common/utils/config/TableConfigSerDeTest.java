@@ -250,8 +250,7 @@ public class TableConfigSerDeTest {
     }
     {
       // with upsert config
-      UpsertConfig upsertConfig =
-          new UpsertConfig(UpsertConfig.Mode.FULL, null, null, "comparison", HashFunction.NONE, null, null);
+      UpsertConfig upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL, null, null, "comparison", HashFunction.NONE);
 
       TableConfig tableConfig = tableConfigBuilder.setUpsertConfig(upsertConfig).build();
 
