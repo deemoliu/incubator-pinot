@@ -95,7 +95,7 @@ public class SegmentIndexCreationDriverImpl implements SegmentIndexCreationDrive
   private long _totalRecordReadTime = 0;
   private long _totalIndexTime = 0;
   private long _totalStatsCollectorTime = 0;
-  private boolean _upsertTTLEnabled;
+  private boolean _upsertSnapshotEnabled;
   private ValidDocsSnapshotCreator _validDocsSnapshotCreator;
 
   @Override
@@ -202,8 +202,8 @@ public class SegmentIndexCreationDriverImpl implements SegmentIndexCreationDrive
     _tempIndexDir = new File(indexDir, "tmp-" + UUID.randomUUID());
     LOGGER.debug("tempIndexDir:{}", _tempIndexDir);
 
-    _upsertTTLEnabled = _config.isUpsertTTLEnabled();
-    if (_upsertTTLEnabled) {
+    _upsertSnapshotEnabled = _config.isUpsertSnapshotEnabled();
+    if (_upsertSnapshotEnabled) {
       // Initialize validDocsSnapshotCreator
       File segmentDir = SegmentDirectoryPaths.findSegmentDirectory(indexDir);
       _validDocsSnapshotCreator = new ValidDocsSnapshotCreator(segmentDir, _segmentName);
@@ -284,12 +284,12 @@ public class SegmentIndexCreationDriverImpl implements SegmentIndexCreationDrive
       // Write the index files to disk
       _indexCreator.setSegmentName(_segmentName);
       _indexCreator.seal();
-      if (_upsertTTLEnabled) {
+      if (_upsertSnapshotEnabled) {
         _validDocsSnapshotCreator.seal();
       }
     } finally {
       _indexCreator.close();
-      if (_upsertTTLEnabled) {
+      if (_upsertSnapshotEnabled) {
         _validDocsSnapshotCreator.close();
       }
     }

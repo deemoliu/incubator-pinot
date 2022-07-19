@@ -55,12 +55,24 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("Column for upsert comparison, default to time column")
   private final String _comparisonColumn;
 
-  @JsonCreator
+  @JsonPropertyDescription("whether use snapshot for fast upsert metadata recovery")
+  private boolean _useSnapshot;
+
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
       @JsonProperty("partialUpsertStrategies") @Nullable Map<String, Strategy> partialUpsertStrategies,
       @JsonProperty("defaultPartialUpsertStrategy") @Nullable Strategy defaultPartialUpsertStrategy,
       @JsonProperty("comparisonColumn") @Nullable String comparisonColumn,
       @JsonProperty("hashFunction") @Nullable HashFunction hashFunction) {
+    this(mode, partialUpsertStrategies, defaultPartialUpsertStrategy, comparisonColumn, hashFunction, false);
+  }
+
+  @JsonCreator
+  public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
+      @JsonProperty("partialUpsertStrategies") @Nullable Map<String, Strategy> partialUpsertStrategies,
+      @JsonProperty("defaultPartialUpsertStrategy") @Nullable Strategy defaultPartialUpsertStrategy,
+      @JsonProperty("comparisonColumn") @Nullable String comparisonColumn,
+      @JsonProperty("hashFunction") @Nullable HashFunction hashFunction,
+      @JsonProperty("useSnapshot") @Nullable boolean useSnapshot) {
     Preconditions.checkArgument(mode != null, "Upsert mode must be configured");
     _mode = mode;
 
@@ -75,6 +87,8 @@ public class UpsertConfig extends BaseJsonConfig {
 
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction == null ? HashFunction.NONE : hashFunction;
+
+    _useSnapshot = useSnapshot;
   }
 
   public Mode getMode() {
@@ -96,5 +110,9 @@ public class UpsertConfig extends BaseJsonConfig {
 
   public String getComparisonColumn() {
     return _comparisonColumn;
+  }
+
+  public boolean isUseSnapshot() {
+    return _useSnapshot;
   }
 }

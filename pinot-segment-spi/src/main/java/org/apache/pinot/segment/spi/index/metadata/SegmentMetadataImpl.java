@@ -89,7 +89,7 @@ public class SegmentMetadataImpl implements SegmentMetadata {
   private String _startOffset;
   private String _endOffset;
 
-  private boolean _upsertTTLEnabled;
+  private boolean _upsertSnapshotEnabled;
 
   // TODO: No need to cache this. We cannot modify the metadata if it is from a input stream
   // Caching properties around can be costly when the number of segments is high according to the
@@ -265,8 +265,8 @@ public class SegmentMetadataImpl implements SegmentMetadata {
     // Set custom configs from metadata properties
     setCustomConfigs(segmentMetadataPropertiesConfiguration, _customMap);
 
-    // Set upsertTTLEnabled
-    _upsertTTLEnabled = segmentMetadataPropertiesConfiguration.getBoolean(Segment.SEGMENT_USE_TTL, false);
+    // Set upsertSnapshotEnabled. Upsert TTL support have to use snapshot.
+    _upsertSnapshotEnabled = segmentMetadataPropertiesConfiguration.getBoolean(Segment.SEGMENT_USE_SNAPSHOT, false);
   }
 
   private static void setCustomConfigs(Configuration segmentMetadataPropertiesConfiguration,
@@ -408,8 +408,8 @@ public class SegmentMetadataImpl implements SegmentMetadata {
     return _columnMetadataMap;
   }
 
-  public boolean isUpsertTTLEnabled() {
-    return _upsertTTLEnabled;
+  public boolean isUpsertSnapshotEnabled() {
+    return _upsertSnapshotEnabled;
   }
 
   @Override

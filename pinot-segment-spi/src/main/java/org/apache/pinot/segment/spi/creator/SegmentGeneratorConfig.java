@@ -117,7 +117,7 @@ public class SegmentGeneratorConfig implements Serializable {
   private boolean _failOnEmptySegment = false;
   private boolean _optimizeDictionaryForMetrics = false;
   private double _noDictionarySizeRatioThreshold = DEFAULT_NO_DICTIONARY_SIZE_RATIO_THRESHOLD;
-  private boolean _isUpsertTTLEnabled = false;
+  private boolean _isUpsertSnapshotEnabled = false;
 
   // constructed from FieldConfig
   private Map<String, Map<String, String>> _columnProperties = new HashMap<>();
@@ -154,14 +154,9 @@ public class SegmentGeneratorConfig implements Serializable {
     }
     setTime(timeColumnName, schema);
 
-    // read TTL value and unit from upsertConfig.
     UpsertConfig upsertConfig = tableConfig.getUpsertConfig();
     if (upsertConfig != null) {
-      String ttlTimeValue = upsertConfig.getTtlTimeValue();
-      String ttlTimeUnit = upsertConfig.getTtlTimeUnit();
-      if (ttlTimeUnit != null && ttlTimeValue != null) {
-        _isUpsertTTLEnabled = true;
-      }
+      _isUpsertSnapshotEnabled = upsertConfig.isUseSnapshot();
     }
 
     IndexingConfig indexingConfig = tableConfig.getIndexingConfig();
@@ -828,7 +823,7 @@ public class SegmentGeneratorConfig implements Serializable {
     _segmentZKPropsConfig = segmentZKPropsConfig;
   }
 
-  public boolean isUpsertTTLEnabled() {
-    return _isUpsertTTLEnabled;
+  public boolean isUpsertSnapshotEnabled() {
+    return _isUpsertSnapshotEnabled;
   }
 }
