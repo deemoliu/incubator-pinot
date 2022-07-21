@@ -183,8 +183,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       Preconditions.checkState(schema != null, "Failed to find schema for table: %s", _tableNameWithType);
 
       _primaryKeyColumns = schema.getPrimaryKeyColumns();
-      Preconditions
-          .checkState(!CollectionUtils.isEmpty(_primaryKeyColumns), "Primary key columns must be configured for dedup");
+      Preconditions.checkState(!CollectionUtils.isEmpty(_primaryKeyColumns),
+          "Primary key columns must be configured for dedup");
       _tableDedupMetadataManager = new TableDedupMetadataManager(_tableNameWithType, _primaryKeyColumns, _serverMetrics,
           dedupConfig.getHashFunction());
     }
@@ -355,8 +355,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       int partitionGroupId = llcSegmentName.getPartitionGroupId();
       Semaphore semaphore = _partitionGroupIdToSemaphoreMap.computeIfAbsent(partitionGroupId, k -> new Semaphore(1));
       PartitionUpsertMetadataManager partitionUpsertMetadataManager =
-          _tableUpsertMetadataManager != null ? _tableUpsertMetadataManager
-              .getOrCreatePartitionManager(partitionGroupId) : null;
+          _tableUpsertMetadataManager != null ? _tableUpsertMetadataManager.getOrCreatePartitionManager(
+              partitionGroupId) : null;
       PartitionDedupMetadataManager partitionDedupMetadataManager =
           _tableDedupMetadataManager != null ? _tableDedupMetadataManager.getOrCreatePartitionManager(partitionGroupId)
               : null;
@@ -402,10 +402,11 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   private void buildDedupMeta(ImmutableSegmentImpl immutableSegment) {
     // TODO(saurabh) refactor commons code with handleUpsert
     String segmentName = immutableSegment.getSegmentName();
-    Integer partitionGroupId = SegmentUtils
-        .getRealtimeSegmentPartitionId(segmentName, _tableNameWithType, _helixManager, _primaryKeyColumns.get(0));
-    Preconditions.checkNotNull(partitionGroupId, String
-        .format("PartitionGroupId is not available for segment: '%s' (dedup-enabled table: %s)", segmentName,
+    Integer partitionGroupId =
+        SegmentUtils.getRealtimeSegmentPartitionId(segmentName, _tableNameWithType, _helixManager,
+            _primaryKeyColumns.get(0));
+    Preconditions.checkNotNull(partitionGroupId,
+        String.format("PartitionGroupId is not available for segment: '%s' (dedup-enabled table: %s)", segmentName,
             _tableNameWithType));
     PartitionDedupMetadataManager partitionDedupMetadataManager =
         _tableDedupMetadataManager.getOrCreatePartitionManager(partitionGroupId);
@@ -415,14 +416,14 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
 
   private void handleUpsert(ImmutableSegmentImpl immutableSegment) {
     String segmentName = immutableSegment.getSegmentName();
-    Integer partitionGroupId = SegmentUtils
-        .getRealtimeSegmentPartitionId(segmentName, _tableNameWithType, _helixManager, _primaryKeyColumns.get(0));
-    Preconditions.checkNotNull(partitionGroupId, String
-        .format("PartitionGroupId is not available for segment: '%s' (upsert-enabled table: %s)", segmentName,
+    Integer partitionGroupId =
+        SegmentUtils.getRealtimeSegmentPartitionId(segmentName, _tableNameWithType, _helixManager,
+            _primaryKeyColumns.get(0));
+    Preconditions.checkNotNull(partitionGroupId,
+        String.format("PartitionGroupId is not available for segment: '%s' (upsert-enabled table: %s)", segmentName,
             _tableNameWithType));
     PartitionUpsertMetadataManager partitionUpsertMetadataManager =
         _tableUpsertMetadataManager.getOrCreatePartitionManager(partitionGroupId);
-
     ThreadSafeMutableRoaringBitmap validDocIds = new ThreadSafeMutableRoaringBitmap();
     if (immutableSegment.getValidDocIds() != null) {
       validDocIds = immutableSegment.getValidDocIds();
@@ -457,9 +458,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
         }
         PrimaryKey primaryKey = new PrimaryKey(values);
         Object upsertComparisonValue = columnToReaderMap.get(_upsertComparisonColumn).getValue(_docId);
-        Preconditions
-            .checkState(upsertComparisonValue instanceof Comparable, "Upsert comparison column: %s must be comparable",
-                _upsertComparisonColumn);
+        Preconditions.checkState(upsertComparisonValue instanceof Comparable,
+            "Upsert comparison column: %s must be comparable", _upsertComparisonColumn);
         return new RecordInfo(primaryKey, _docId++, (Comparable) upsertComparisonValue);
       }
     };

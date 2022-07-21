@@ -329,42 +329,40 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
     boolean useLlc = useLlc();
     if (useLlc) {
       // LLC
-      streamConfigMap
-          .put(StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_TYPES),
-              StreamConfig.ConsumerType.LOWLEVEL.toString());
-      streamConfigMap.put(KafkaStreamConfigProperties
-              .constructStreamProperty(KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_BROKER_LIST),
+      streamConfigMap.put(
+          StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_TYPES),
+          StreamConfig.ConsumerType.LOWLEVEL.toString());
+      streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
+          KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_BROKER_LIST),
           "localhost:" + _kafkaStarters.get(0).getPort());
       if (useKafkaTransaction()) {
-        streamConfigMap.put(KafkaStreamConfigProperties
-                .constructStreamProperty(KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL),
+        streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
+            KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL),
             KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
       }
     } else {
       // HLC
-      streamConfigMap
-          .put(StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_TYPES),
-              StreamConfig.ConsumerType.HIGHLEVEL.toString());
-      streamConfigMap.put(KafkaStreamConfigProperties
-              .constructStreamProperty(KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_ZK_CONNECTION_STRING),
-          getKafkaZKAddress());
-      streamConfigMap.put(KafkaStreamConfigProperties
-              .constructStreamProperty(KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_BOOTSTRAP_SERVER),
+      streamConfigMap.put(
+          StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_TYPES),
+          StreamConfig.ConsumerType.HIGHLEVEL.toString());
+      streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
+          KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_ZK_CONNECTION_STRING), getKafkaZKAddress());
+      streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
+          KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_BOOTSTRAP_SERVER),
           "localhost:" + _kafkaStarters.get(0).getPort());
     }
-    streamConfigMap.put(StreamConfigProperties
-            .constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_FACTORY_CLASS),
-        getStreamConsumerFactoryClassName());
-    streamConfigMap
-        .put(StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_TOPIC_NAME),
-            getKafkaTopic());
-    streamConfigMap
-        .put(StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_DECODER_CLASS),
-            AvroFileSchemaKafkaAvroMessageDecoder.class.getName());
-    streamConfigMap
-        .put(StreamConfigProperties.SEGMENT_FLUSH_THRESHOLD_ROWS, Integer.toString(getRealtimeSegmentFlushSize()));
-    streamConfigMap.put(StreamConfigProperties
-        .constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_OFFSET_CRITERIA), "smallest");
+    streamConfigMap.put(StreamConfigProperties.constructStreamProperty(streamType,
+        StreamConfigProperties.STREAM_CONSUMER_FACTORY_CLASS), getStreamConsumerFactoryClassName());
+    streamConfigMap.put(
+        StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_TOPIC_NAME),
+        getKafkaTopic());
+    streamConfigMap.put(
+        StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_DECODER_CLASS),
+        AvroFileSchemaKafkaAvroMessageDecoder.class.getName());
+    streamConfigMap.put(StreamConfigProperties.SEGMENT_FLUSH_THRESHOLD_ROWS,
+        Integer.toString(getRealtimeSegmentFlushSize()));
+    streamConfigMap.put(StreamConfigProperties.constructStreamProperty(streamType,
+        StreamConfigProperties.STREAM_CONSUMER_OFFSET_CRITERIA), "smallest");
     return streamConfigMap;
   }
 
@@ -503,9 +501,8 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
   protected void pushAvroIntoKafka(List<File> avroFiles)
       throws Exception {
 
-    ClusterIntegrationTestUtils
-        .pushAvroIntoKafka(avroFiles, "localhost:" + getKafkaPort(), getKafkaTopic(), getMaxNumKafkaMessagesPerBatch(),
-            getKafkaMessageHeader(), getPartitionColumn(), injectTombstones());
+    ClusterIntegrationTestUtils.pushAvroIntoKafka(avroFiles, "localhost:" + getKafkaPort(), getKafkaTopic(),
+        getMaxNumKafkaMessagesPerBatch(), getKafkaMessageHeader(), getPartitionColumn(), injectTombstones());
   }
 
   protected boolean injectTombstones() {
@@ -610,7 +607,7 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
    */
   protected void testQuery(String pinotQuery, String h2Query)
       throws Exception {
-    ClusterIntegrationTestUtils
-        .testQuery(pinotQuery, _brokerBaseApiUrl, getPinotConnection(), h2Query, getH2Connection());
+    ClusterIntegrationTestUtils.testQuery(pinotQuery, _brokerBaseApiUrl, getPinotConnection(), h2Query,
+        getH2Connection());
   }
 }

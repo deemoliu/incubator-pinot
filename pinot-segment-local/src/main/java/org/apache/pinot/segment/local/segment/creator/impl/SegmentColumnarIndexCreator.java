@@ -79,7 +79,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.pinot.segment.spi.V1Constants.MetadataKeys.Column.*;
 import static org.apache.pinot.segment.spi.V1Constants.MetadataKeys.Segment.*;
 
-
 /**
  * Segment creator which writes data in a columnar form.
  */
@@ -178,9 +177,8 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
 
     Map<String, H3IndexConfig> h3IndexConfigs = _config.getH3IndexConfigs();
     for (String columnName : h3IndexConfigs.keySet()) {
-      Preconditions
-          .checkState(schema.hasColumn(columnName), "Cannot create H3 index for column: %s because it is not in schema",
-              columnName);
+      Preconditions.checkState(schema.hasColumn(columnName),
+          "Cannot create H3 index for column: %s because it is not in schema", columnName);
     }
 
     // Initialize creators for dictionary, forward index and inverted index
@@ -199,14 +197,19 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
       Preconditions.checkState(dictEnabledColumn || !invertedIndexColumns.contains(columnName),
           "Cannot create inverted index for raw index column: %s", columnName);
 
-      IndexCreationContext.Common context = IndexCreationContext.builder().withIndexDir(_indexDir)
-          .withCardinality(columnIndexCreationInfo.getDistinctValueCount()).withDictionary(dictEnabledColumn)
-          .withFieldSpec(fieldSpec).withTotalDocs(segmentIndexCreationInfo.getTotalDocs())
+      IndexCreationContext.Common context = IndexCreationContext.builder()
+          .withIndexDir(_indexDir)
+          .withCardinality(columnIndexCreationInfo.getDistinctValueCount())
+          .withDictionary(dictEnabledColumn)
+          .withFieldSpec(fieldSpec)
+          .withTotalDocs(segmentIndexCreationInfo.getTotalDocs())
           .withMinValue((Comparable<?>) columnIndexCreationInfo.getMin())
           .withMaxValue((Comparable<?>) columnIndexCreationInfo.getMax())
           .withTotalNumberOfEntries(columnIndexCreationInfo.getTotalNumberOfEntries())
-          .withColumnIndexCreationInfo(columnIndexCreationInfo).sorted(columnIndexCreationInfo.isSorted())
-          .onHeap(segmentCreationSpec.isOnHeap()).build();
+          .withColumnIndexCreationInfo(columnIndexCreationInfo)
+          .sorted(columnIndexCreationInfo.isSorted())
+          .onHeap(segmentCreationSpec.isOnHeap())
+          .build();
       // Initialize forward index creator
       ChunkCompressionType chunkCompressionType =
           dictEnabledColumn ? null : getColumnCompressionType(segmentCreationSpec, fieldSpec);
@@ -215,8 +218,8 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
 
       // Initialize inverted index creator; skip creating inverted index if sorted
       if (invertedIndexColumns.contains(columnName) && !columnIndexCreationInfo.isSorted()) {
-        _invertedIndexCreatorMap
-            .put(columnName, _indexCreatorProvider.newInvertedIndexCreator(context.forInvertedIndex()));
+        _invertedIndexCreatorMap.put(columnName,
+            _indexCreatorProvider.newInvertedIndexCreator(context.forInvertedIndex()));
       }
       if (dictEnabledColumn) {
         // Create dictionary-encoded index
@@ -238,10 +241,10 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
       }
 
       if (bloomFilterColumns.contains(columnName)) {
-        if (indexingConfig.getBloomFilterConfigs() != null && indexingConfig.getBloomFilterConfigs()
-            .containsKey(columnName)) {
-          _bloomFilterCreatorMap.put(columnName, _indexCreatorProvider
-              .newBloomFilterCreator(context.forBloomFilter(indexingConfig.getBloomFilterConfigs().get(columnName))));
+        if (indexingConfig.getBloomFilterConfigs() != null
+            && indexingConfig.getBloomFilterConfigs().containsKey(columnName)) {
+          _bloomFilterCreatorMap.put(columnName, _indexCreatorProvider.newBloomFilterCreator(
+              context.forBloomFilter(indexingConfig.getBloomFilterConfigs().get(columnName))));
         } else {
           _bloomFilterCreatorMap.put(columnName, _indexCreatorProvider.newBloomFilterCreator(
               context.forBloomFilter(new BloomFilterConfig(BloomFilterConfig.DEFAULT_FPP, 0, false))));
@@ -249,8 +252,8 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
       }
 
       if (!columnIndexCreationInfo.isSorted() && rangeIndexColumns.contains(columnName)) {
-        _rangeIndexFilterCreatorMap
-            .put(columnName, _indexCreatorProvider.newRangeIndexCreator(context.forRangeIndex(rangeIndexVersion)));
+        _rangeIndexFilterCreatorMap.put(columnName,
+            _indexCreatorProvider.newRangeIndexCreator(context.forRangeIndex(rangeIndexVersion)));
       }
 
       if (textIndexColumns.contains(columnName)) {
@@ -266,13 +269,13 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
             }
           }
         }
-        _textIndexCreatorMap
-            .put(columnName, _indexCreatorProvider.newTextIndexCreator(context.forTextIndex(fstType, true)));
+        _textIndexCreatorMap.put(columnName,
+            _indexCreatorProvider.newTextIndexCreator(context.forTextIndex(fstType, true)));
       }
 
       if (fstIndexColumns.contains(columnName)) {
-        _fstIndexCreatorMap.put(columnName, _indexCreatorProvider.newTextIndexCreator(context
-            .forFSTIndex(_config.getFSTIndexType(),
+        _fstIndexCreatorMap.put(columnName, _indexCreatorProvider.newTextIndexCreator(
+            context.forFSTIndex(_config.getFSTIndexType(),
                 (String[]) columnIndexCreationInfo.getSortedUniqueElementsArray())));
       }
 
@@ -291,7 +294,6 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
         // Initialize Null value vector map
         _nullValueVectorCreatorMap.put(columnName, new NullValueVectorCreator(_indexDir, columnName));
       }
-
       _upsertSnapshotEnabled = _config.isUpsertSnapshotEnabled();
     }
   }
@@ -815,8 +817,8 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
         String.valueOf(columnIndexCreationInfo.getMaxNumberOfMultiValueElements()));
     properties.setProperty(getKeyFor(column, TOTAL_NUMBER_OF_ENTRIES),
         String.valueOf(columnIndexCreationInfo.getTotalNumberOfEntries()));
-    properties
-        .setProperty(getKeyFor(column, IS_AUTO_GENERATED), String.valueOf(columnIndexCreationInfo.isAutoGenerated()));
+    properties.setProperty(getKeyFor(column, IS_AUTO_GENERATED),
+        String.valueOf(columnIndexCreationInfo.isAutoGenerated()));
 
     PartitionFunction partitionFunction = columnIndexCreationInfo.getPartitionFunction();
     if (partitionFunction != null) {
@@ -894,10 +896,9 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
   @Override
   public void close()
       throws IOException {
-    FileUtils.close(Iterables
-        .concat(_dictionaryCreatorMap.values(), _forwardIndexCreatorMap.values(), _invertedIndexCreatorMap.values(),
-            _textIndexCreatorMap.values(), _fstIndexCreatorMap.values(), _jsonIndexCreatorMap.values(),
-            _h3IndexCreatorMap.values(), _nullValueVectorCreatorMap.values(), _bloomFilterCreatorMap.values(),
-            _rangeIndexFilterCreatorMap.values()));
+    FileUtils.close(Iterables.concat(_dictionaryCreatorMap.values(), _forwardIndexCreatorMap.values(),
+        _invertedIndexCreatorMap.values(), _textIndexCreatorMap.values(), _fstIndexCreatorMap.values(),
+        _jsonIndexCreatorMap.values(), _h3IndexCreatorMap.values(), _nullValueVectorCreatorMap.values(),
+        _bloomFilterCreatorMap.values(), _rangeIndexFilterCreatorMap.values()));
   }
 }
