@@ -77,6 +77,7 @@ import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.CommonConstants.Segment.Realtime.Status;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 
 import static org.apache.pinot.spi.utils.CommonConstants.Segment.METADATA_URI_FOR_PEER_DOWNLOAD;
 
@@ -425,9 +426,6 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     PartitionUpsertMetadataManager partitionUpsertMetadataManager =
         _tableUpsertMetadataManager.getOrCreatePartitionManager(partitionGroupId);
     ThreadSafeMutableRoaringBitmap validDocIds = new ThreadSafeMutableRoaringBitmap();
-    if (immutableSegment.getValidDocIds() != null) {
-      validDocIds = immutableSegment.getValidDocIds();
-    }
     immutableSegment.enableUpsert(partitionUpsertMetadataManager, validDocIds);
 
     Map<String, PinotSegmentColumnReader> columnToReaderMap = new HashMap<>();
@@ -438,32 +436,71 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
         .put(_upsertComparisonColumn, new PinotSegmentColumnReader(immutableSegment, _upsertComparisonColumn));
     int numTotalDocs = immutableSegment.getSegmentMetadata().getTotalDocs();
     int numPrimaryKeyColumns = _primaryKeyColumns.size();
-    Iterator<RecordInfo> recordInfoIterator = new Iterator<RecordInfo>() {
-      private int _docId = 0;
+
+    ImmutableRoaringBitmap validDocSnapshot = immutableSegment.getValidDocSnapshots();
+    Iterator<RecordInfo> recordInfoIterator =
+        getRecordInfoIterator(numTotalDocs, numPrimaryKeyColumns, columnToReaderMap, validDocSnapshot);
+    partitionUpsertMetadataManager.addSegment(immutableSegment, recordInfoIterator);
+  }
+
+  private Iterator<RecordInfo> getRecordInfoIterator(int numTotalDocs, int numPrimaryKeyColumns,
+      Map<String, PinotSegmentColumnReader> columnToReaderMap, ImmutableRoaringBitmap validDocSnapshot) {
+    if (validDocSnapshot != null) {
+      Iterator<Integer> validDocsIterator = validDocSnapshot.iterator();
+      int numDocs = validDocSnapshot.getCardinality();
+      return new Iterator<RecordInfo>() {
+        private int _incId = 0;
+
+        @Override
+        public boolean hasNext() {
+          return _incId < numDocs;
+        }
+
+        @Override
+        public RecordInfo next() {
+          int docId = validDocsIterator.next();
+          Object[] values = new Object[numPrimaryKeyColumns];
+          for (int i = 0; i < numPrimaryKeyColumns; i++) {
+            Object value = columnToReaderMap.get(_primaryKeyColumns.get(i)).getValue(docId);
+            if (value instanceof byte[]) {
+              value = new ByteArray((byte[]) value);
+            }
+            values[i] = value;
+          }
+          PrimaryKey primaryKey = new PrimaryKey(values);
+          Object upsertComparisonValue = columnToReaderMap.get(_upsertComparisonColumn).getValue(docId);
+          Preconditions.checkState(upsertComparisonValue instanceof Comparable,
+              "Upsert comparison column: %s must be comparable", _upsertComparisonColumn);
+          return new RecordInfo(primaryKey, _incId++, (Comparable) upsertComparisonValue);
+        }
+      };
+    }
+
+    return new Iterator<RecordInfo>() {
+      private int _incId = 0;
 
       @Override
       public boolean hasNext() {
-        return _docId < numTotalDocs;
+        return _incId < numTotalDocs;
       }
 
       @Override
       public RecordInfo next() {
         Object[] values = new Object[numPrimaryKeyColumns];
         for (int i = 0; i < numPrimaryKeyColumns; i++) {
-          Object value = columnToReaderMap.get(_primaryKeyColumns.get(i)).getValue(_docId);
+          Object value = columnToReaderMap.get(_primaryKeyColumns.get(i)).getValue(_incId);
           if (value instanceof byte[]) {
             value = new ByteArray((byte[]) value);
           }
           values[i] = value;
         }
         PrimaryKey primaryKey = new PrimaryKey(values);
-        Object upsertComparisonValue = columnToReaderMap.get(_upsertComparisonColumn).getValue(_docId);
+        Object upsertComparisonValue = columnToReaderMap.get(_upsertComparisonColumn).getValue(_incId);
         Preconditions.checkState(upsertComparisonValue instanceof Comparable,
             "Upsert comparison column: %s must be comparable", _upsertComparisonColumn);
-        return new RecordInfo(primaryKey, _docId++, (Comparable) upsertComparisonValue);
+        return new RecordInfo(primaryKey, _incId++, (Comparable) upsertComparisonValue);
       }
     };
-    partitionUpsertMetadataManager.addSegment(immutableSegment, recordInfoIterator);
   }
 
   @Override

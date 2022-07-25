@@ -65,6 +65,7 @@ public class ImmutableSegmentImpl implements ImmutableSegment {
   // For upsert
   private PartitionUpsertMetadataManager _partitionUpsertMetadataManager;
   private ThreadSafeMutableRoaringBitmap _validDocIds;
+  private ImmutableRoaringBitmap _validDocSnapshots;
   private PinotSegmentRecordReader _pinotSegmentRecordReader;
 
   public ImmutableSegmentImpl(SegmentDirectory segmentDirectory, SegmentMetadataImpl segmentMetadata,
@@ -217,10 +218,13 @@ public class ImmutableSegmentImpl implements ImmutableSegment {
   }
 
   @Nullable
-  public void setValidDocIds(ImmutableRoaringBitmap validDocIds) {
-    for (int docId: validDocIds.toArray()) {
-      _validDocIds.add(docId);
-    }
+  public void setValidDocSnapshots(ImmutableRoaringBitmap validDocSnapshots) {
+    this._validDocSnapshots = validDocSnapshots;
+  }
+
+  @Nullable
+  public ImmutableRoaringBitmap getValidDocSnapshots() {
+    return _validDocSnapshots;
   }
 
   @Nullable

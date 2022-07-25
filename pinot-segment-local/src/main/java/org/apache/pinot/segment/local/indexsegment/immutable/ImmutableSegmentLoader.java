@@ -221,7 +221,7 @@ public class ImmutableSegmentLoader {
     if (segmentMetadata.isUpsertSnapshotEnabled() && localIndexDir != null) {
       validDocsSnapshotContainer =
           new ValidDocsSnapshotContainer(SegmentDirectoryPaths.findSegmentDirectory(localIndexDir), segmentMetadata);
-      segment.setValidDocIds(validDocsSnapshotContainer.getValidDocsSnapshot());
+      segment.setValidDocSnapshots(validDocsSnapshotContainer.getValidDocsSnapshot());
     }
 
     LOGGER.info("Successfully loaded segment: {} with SegmentDirectory", segmentName);
