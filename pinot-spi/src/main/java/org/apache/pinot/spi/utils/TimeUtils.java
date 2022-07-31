@@ -194,4 +194,8 @@ public class TimeUtils {
       return false;
     }
   }
+
+  public static long convertTimeStrWithUnitToSeconds(String ttlValue, String ttlUnit) {
+    return TimeUnit.valueOf(ttlUnit.toUpperCase()).toSeconds(Long.parseLong(ttlValue));
+  }
 }

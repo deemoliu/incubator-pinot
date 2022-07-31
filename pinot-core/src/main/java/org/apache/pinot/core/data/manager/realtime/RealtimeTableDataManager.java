@@ -60,6 +60,7 @@ import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProvide
 import org.apache.pinot.segment.local.upsert.PartialUpsertHandler;
 import org.apache.pinot.segment.local.upsert.PartitionUpsertMetadataManager;
 import org.apache.pinot.segment.local.upsert.TableUpsertMetadataManager;
+import org.apache.pinot.segment.local.upsert.UpsertTTLManager;
 import org.apache.pinot.segment.local.utils.SchemaUtils;
 import org.apache.pinot.segment.local.utils.tablestate.TableStateUtils;
 import org.apache.pinot.segment.spi.ImmutableSegment;
@@ -204,9 +205,16 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
             upsertConfig.getDefaultPartialUpsertStrategy(), comparisonColumn);
       }
 
+      UpsertTTLManager upsertTTLManager = null;
+      String ttlTimeValue = upsertConfig.getTtlTimeValue();
+      String ttlTimeUnit = upsertConfig.getTtlTimeUnit();
+      if (ttlTimeUnit != null && ttlTimeValue != null) {
+        upsertTTLManager = new UpsertTTLManager(ttlTimeValue, ttlTimeValue);
+      }
+
       _tableUpsertMetadataManager =
           new TableUpsertMetadataManager(_tableNameWithType, primaryKeyColumns, comparisonColumn,
-              upsertConfig.getHashFunction(), partialUpsertHandler, _serverMetrics);
+              upsertConfig.getHashFunction(), partialUpsertHandler, upsertTTLManager, _serverMetrics);
     }
   }
 

@@ -105,15 +105,18 @@ public class PartitionUpsertMetadataManager {
   private long _lastOutOfOrderEventReportTimeNs = Long.MIN_VALUE;
   private int _numOutOfOrderEvents = 0;
 
+  private final UpsertTTLManager _upsertTTLManager;
+
   public PartitionUpsertMetadataManager(String tableNameWithType, int partitionId, List<String> primaryKeyColumns,
       String comparisonColumn, HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler,
-      ServerMetrics serverMetrics) {
+      @Nullable UpsertTTLManager upsertTTLManager, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _upsertTTLManager = upsertTTLManager;
     _serverMetrics = serverMetrics;
     _logger = LoggerFactory.getLogger(tableNameWithType + "-" + partitionId + "-" + getClass().getSimpleName());
   }

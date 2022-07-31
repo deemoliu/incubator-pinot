@@ -38,22 +38,26 @@ public class TableUpsertMetadataManager {
   private final String _comparisonColumn;
   private final HashFunction _hashFunction;
   private final PartialUpsertHandler _partialUpsertHandler;
+
+  private final UpsertTTLManager _upsertTTLManager;
   private final ServerMetrics _serverMetrics;
 
   public TableUpsertMetadataManager(String tableNameWithType, List<String> primaryKeyColumns, String comparisonColumn,
-      HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler, ServerMetrics serverMetrics) {
+      HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLManager upsertTTLManager,
+      ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _upsertTTLManager = upsertTTLManager;
     _serverMetrics = serverMetrics;
   }
 
   public PartitionUpsertMetadataManager getOrCreatePartitionManager(int partitionId) {
     return _partitionMetadataManagerMap.computeIfAbsent(partitionId,
         k -> new PartitionUpsertMetadataManager(_tableNameWithType, k, _primaryKeyColumns, _comparisonColumn,
-            _hashFunction, _partialUpsertHandler, _serverMetrics));
+            _hashFunction, _partialUpsertHandler, _upsertTTLManager, _serverMetrics));
   }
 
   public boolean isPartialUpsertEnabled() {

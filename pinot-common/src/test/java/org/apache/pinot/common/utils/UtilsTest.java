@@ -72,6 +72,9 @@ public class UtilsTest {
     } catch (Exception e) {
       // Expected
     }
+
+    // Test timeUnit and timeValue convert to seconds
+    assertEquals(TimeUtils.convertTimeStrWithUnitToSeconds("1", "DAYS"), 86400);
   }
 
   @Test
