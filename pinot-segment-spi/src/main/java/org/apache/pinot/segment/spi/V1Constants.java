@@ -49,6 +49,7 @@ public class V1Constants {
     public static final String H3_INDEX_FILE_EXTENSION = ".h3.idx";
     public static final String BLOOM_FILTER_FILE_EXTENSION = ".bloom";
     public static final String NULLVALUE_VECTOR_FILE_EXTENSION = ".bitmap.nullvalue";
+    public static final String VALID_DOCS_FILE_EXTENSION = ".bitmap.validdocs";
     public static final String LUCENE_TEXT_INDEX_DOCID_MAPPING_FILE_EXTENSION = ".lucene.mapping";
     public static final String LUCENE_TEXT_INDEX_FILE_EXTENSION = ".lucene.index";
   }
@@ -75,6 +76,7 @@ public class V1Constants {
       public static final String DATETIME_COLUMNS = "segment.datetime.column.names";
       public static final String SEGMENT_TOTAL_DOCS = "segment.total.docs";
       public static final String SEGMENT_PADDING_CHARACTER = "segment.padding.character";
+      public static final String SEGMENT_USE_SNAPSHOT = "segment.use.snapshot";
 
       public static final String CUSTOM_SUBSET = "custom";
 

@@ -333,11 +333,11 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
           StreamConfigProperties.constructStreamProperty(streamType, StreamConfigProperties.STREAM_CONSUMER_TYPES),
           StreamConfig.ConsumerType.LOWLEVEL.toString());
       streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
-              KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_BROKER_LIST),
+          KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_BROKER_LIST),
           "localhost:" + _kafkaStarters.get(0).getPort());
       if (useKafkaTransaction()) {
         streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
-                KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL),
+            KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL),
             KafkaStreamConfigProperties.LowLevelConsumer.KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
       }
     } else {
@@ -348,7 +348,7 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
       streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
           KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_ZK_CONNECTION_STRING), getKafkaZKAddress());
       streamConfigMap.put(KafkaStreamConfigProperties.constructStreamProperty(
-              KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_BOOTSTRAP_SERVER),
+          KafkaStreamConfigProperties.HighLevelConsumer.KAFKA_HLC_BOOTSTRAP_SERVER),
           "localhost:" + _kafkaStarters.get(0).getPort());
     }
     streamConfigMap.put(StreamConfigProperties.constructStreamProperty(streamType,
@@ -397,7 +397,7 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
         .setRoutingConfig(new RoutingConfig(null, null, RoutingConfig.STRICT_REPLICA_GROUP_INSTANCE_SELECTOR_TYPE))
         .setSegmentPartitionConfig(new SegmentPartitionConfig(columnPartitionConfigMap))
         .setReplicaGroupStrategyConfig(new ReplicaGroupStrategyConfig(primaryKeyColumn, 1))
-        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null, null, null)).build();
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.FULL, null, null, null, null, false)).build();
   }
 
   /**

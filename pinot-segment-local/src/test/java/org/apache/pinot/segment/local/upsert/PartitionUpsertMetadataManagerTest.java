@@ -63,7 +63,7 @@ public class PartitionUpsertMetadataManagerTest {
   private void verifyAddSegment(HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
         new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"), "timeCol",
-            hashFunction, null, mock(ServerMetrics.class));
+            hashFunction, null, null, mock(ServerMetrics.class));
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add the first segment
@@ -214,7 +214,7 @@ public class PartitionUpsertMetadataManagerTest {
   private void verifyAddRecord(HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
         new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"), "timeCol",
-            hashFunction, null, mock(ServerMetrics.class));
+            hashFunction, null, null, mock(ServerMetrics.class));
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add the first segment
@@ -282,7 +282,7 @@ public class PartitionUpsertMetadataManagerTest {
   private void verifyRemoveSegment(HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
         new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"), "timeCol",
-            hashFunction, null, mock(ServerMetrics.class));
+            hashFunction, null, null, mock(ServerMetrics.class));
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add 2 segments

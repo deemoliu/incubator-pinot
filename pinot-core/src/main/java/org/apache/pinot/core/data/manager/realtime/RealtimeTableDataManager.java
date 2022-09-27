@@ -54,6 +54,7 @@ import org.apache.pinot.segment.local.dedup.TableDedupMetadataManager;
 import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImpl;
 import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentLoader;
 import org.apache.pinot.segment.local.realtime.impl.RealtimeSegmentStatsHistory;
+import org.apache.pinot.segment.local.segment.creator.impl.upsert.ValidDocsSnapshotCreator;
 import org.apache.pinot.segment.local.segment.index.loader.IndexLoadingConfig;
 import org.apache.pinot.segment.local.segment.index.loader.LoaderUtils;
 import org.apache.pinot.segment.local.segment.virtualcolumn.VirtualColumnProviderFactory;
@@ -204,9 +205,14 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
             upsertConfig.getDefaultPartialUpsertStrategy(), comparisonColumn);
       }
 
+      ValidDocsSnapshotCreator validDocsSnapshotCreator = null;
+      if (upsertConfig.isUseSnapshot()) {
+        validDocsSnapshotCreator = new ValidDocsSnapshotCreator(_indexDir);
+      }
+
       _tableUpsertMetadataManager =
           new TableUpsertMetadataManager(_tableNameWithType, primaryKeyColumns, comparisonColumn,
-              upsertConfig.getHashFunction(), partialUpsertHandler, _serverMetrics);
+              upsertConfig.getHashFunction(), partialUpsertHandler, validDocsSnapshotCreator, _serverMetrics);
     }
   }
 
@@ -348,8 +354,8 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       int partitionGroupId = llcSegmentName.getPartitionGroupId();
       Semaphore semaphore = _partitionGroupIdToSemaphoreMap.computeIfAbsent(partitionGroupId, k -> new Semaphore(1));
       PartitionUpsertMetadataManager partitionUpsertMetadataManager =
-          _tableUpsertMetadataManager != null ? _tableUpsertMetadataManager.getOrCreatePartitionManager(
-              partitionGroupId) : null;
+          _tableUpsertMetadataManager != null ? _tableUpsertMetadataManager
+              .getOrCreatePartitionManager(partitionGroupId) : null;
       PartitionDedupMetadataManager partitionDedupMetadataManager =
           _tableDedupMetadataManager != null ? _tableDedupMetadataManager.getOrCreatePartitionManager(partitionGroupId)
               : null;

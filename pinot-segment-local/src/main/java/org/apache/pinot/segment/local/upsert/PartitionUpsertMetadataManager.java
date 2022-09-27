@@ -20,6 +20,7 @@ package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -33,6 +34,7 @@ import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.utils.LLCSegmentName;
 import org.apache.pinot.segment.local.indexsegment.immutable.EmptyIndexSegment;
 import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImpl;
+import org.apache.pinot.segment.local.segment.creator.impl.upsert.ValidDocsSnapshotCreator;
 import org.apache.pinot.segment.local.utils.HashUtils;
 import org.apache.pinot.segment.local.utils.RecordInfo;
 import org.apache.pinot.segment.spi.ImmutableSegment;
@@ -44,6 +46,7 @@ import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.roaringbitmap.PeekableIntIterator;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,15 +100,18 @@ public class PartitionUpsertMetadataManager {
   private long _lastOutOfOrderEventReportTimeNs = Long.MIN_VALUE;
   private int _numOutOfOrderEvents = 0;
 
+  private ValidDocsSnapshotCreator _validDocsSnapshotCreator;
+
   public PartitionUpsertMetadataManager(String tableNameWithType, int partitionId, List<String> primaryKeyColumns,
       String comparisonColumn, HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler,
-      ServerMetrics serverMetrics) {
+      @Nullable ValidDocsSnapshotCreator validDocsSnapshotCreator, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _validDocsSnapshotCreator = validDocsSnapshotCreator;
     _serverMetrics = serverMetrics;
     _logger = LoggerFactory.getLogger(tableNameWithType + "-" + partitionId + "-" + getClass().getSimpleName());
   }
@@ -133,7 +139,8 @@ public class PartitionUpsertMetadataManager {
     Preconditions.checkArgument(segment instanceof ImmutableSegmentImpl,
         "Got unsupported segment implementation: {} for segment: {}, table: {}", segment.getClass(), segmentName,
         _tableNameWithType);
-    addSegment((ImmutableSegmentImpl) segment, new ThreadSafeMutableRoaringBitmap(), getRecordInfoIterator(segment));
+    addSegment((ImmutableSegmentImpl) segment, new ThreadSafeMutableRoaringBitmap(),
+        getRecordInfoIterator((ImmutableSegmentImpl) segment));
 
     // Update metrics
     int numPrimaryKeys = _primaryKeyToRecordLocationMap.size();
@@ -143,26 +150,35 @@ public class PartitionUpsertMetadataManager {
     _logger.info("Finished adding segment: {}, current primary key count: {}", segmentName, numPrimaryKeys);
   }
 
-  private Iterator<RecordInfo> getRecordInfoIterator(ImmutableSegment segment) {
-    int numTotalDocs = segment.getSegmentMetadata().getTotalDocs();
+  private Iterator<RecordInfo> getRecordInfoIterator(ImmutableSegmentImpl segment) {
+    ImmutableRoaringBitmap validDocSnapshot = segment.getValidDocSnapshots();
+    int numTotalDocs =
+        validDocSnapshot != null ? validDocSnapshot.getCardinality() : segment.getSegmentMetadata().getTotalDocs();
     return new Iterator<RecordInfo>() {
-      private int _docId = 0;
+      private int _incId = 0;
+      private Iterator<Integer> _docIdIterator = validDocSnapshot != null ? validDocSnapshot.iterator() : null;
 
       @Override
       public boolean hasNext() {
-        return _docId < numTotalDocs;
+        return _incId < numTotalDocs;
       }
 
       @Override
       public RecordInfo next() {
+        int docId;
+        if (_docIdIterator != null) {
+          docId = _docIdIterator.next();
+        } else {
+          docId = _incId;
+        }
         PrimaryKey primaryKey = new PrimaryKey(new Object[_primaryKeyColumns.size()]);
-        getPrimaryKey(segment, _docId, primaryKey);
+        getPrimaryKey(segment, docId, primaryKey);
 
-        Object comparisonValue = segment.getValue(_docId, _comparisonColumn);
+        Object comparisonValue = segment.getValue(docId, _comparisonColumn);
         if (comparisonValue instanceof byte[]) {
           comparisonValue = new ByteArray((byte[]) comparisonValue);
         }
-        return new RecordInfo(primaryKey, _docId++, (Comparable) comparisonValue);
+        return new RecordInfo(primaryKey, _incId++, (Comparable) comparisonValue);
       }
     };
   }
@@ -345,6 +361,14 @@ public class PartitionUpsertMetadataManager {
             }
             return recordLocation;
           });
+    }
+
+    if (_validDocsSnapshotCreator != null && segment instanceof ImmutableSegment) {
+      try {
+        _validDocsSnapshotCreator.persist(validDocIds, segmentName);
+      } catch (IOException e) {
+        _logger.error("Failed to persist snapshot for segment {}, table {}", segmentName, _tableNameWithType);
+      }
     }
 
     // Update metrics

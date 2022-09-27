@@ -108,6 +108,7 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
   private int _totalDocs;
   private int _docIdCounter;
   private boolean _nullHandlingEnabled;
+  private boolean _upsertSnapshotEnabled;
   private Map<String, Map<String, String>> _columnProperties;
 
   @Override
@@ -293,6 +294,7 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
         // Initialize Null value vector map
         _nullValueVectorCreatorMap.put(columnName, new NullValueVectorCreator(_indexDir, columnName));
       }
+      _upsertSnapshotEnabled = _config.isUpsertSnapshotEnabled();
     }
   }
 
@@ -709,6 +711,7 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
     String timeColumnName = _config.getTimeColumnName();
     properties.setProperty(TIME_COLUMN_NAME, timeColumnName);
     properties.setProperty(SEGMENT_TOTAL_DOCS, String.valueOf(_totalDocs));
+    properties.setProperty(SEGMENT_USE_SNAPSHOT, _upsertSnapshotEnabled);
 
     // Write time related metadata (start time, end time, time unit)
     if (timeColumnName != null) {

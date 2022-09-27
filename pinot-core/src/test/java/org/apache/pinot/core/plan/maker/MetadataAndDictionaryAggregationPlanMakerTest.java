@@ -126,7 +126,7 @@ public class MetadataAndDictionaryAggregationPlanMakerTest {
     _upsertIndexSegment = ImmutableSegmentLoader.load(new File(INDEX_DIR, SEGMENT_NAME), ReadMode.heap);
     ((ImmutableSegmentImpl) _upsertIndexSegment).enableUpsert(
         new PartitionUpsertMetadataManager("testTable_REALTIME", 0, Collections.singletonList("column6"),
-            "daysSinceEpoch", HashFunction.NONE, null, serverMetrics), new ThreadSafeMutableRoaringBitmap());
+            "daysSinceEpoch", HashFunction.NONE, null, null, serverMetrics), new ThreadSafeMutableRoaringBitmap());
   }
 
   @AfterClass

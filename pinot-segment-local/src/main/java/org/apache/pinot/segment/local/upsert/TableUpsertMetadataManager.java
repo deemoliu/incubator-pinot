@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.segment.local.segment.creator.impl.upsert.ValidDocsSnapshotCreator;
 import org.apache.pinot.spi.config.table.HashFunction;
 
 
@@ -38,22 +39,25 @@ public class TableUpsertMetadataManager {
   private final String _comparisonColumn;
   private final HashFunction _hashFunction;
   private final PartialUpsertHandler _partialUpsertHandler;
+  private final ValidDocsSnapshotCreator _validDocsSnapshotCreator;
   private final ServerMetrics _serverMetrics;
 
   public TableUpsertMetadataManager(String tableNameWithType, List<String> primaryKeyColumns, String comparisonColumn,
-      HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler, ServerMetrics serverMetrics) {
+      HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler,
+      @Nullable ValidDocsSnapshotCreator validDocsSnapshotCreator, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _validDocsSnapshotCreator = validDocsSnapshotCreator;
     _serverMetrics = serverMetrics;
   }
 
   public PartitionUpsertMetadataManager getOrCreatePartitionManager(int partitionId) {
     return _partitionMetadataManagerMap.computeIfAbsent(partitionId,
         k -> new PartitionUpsertMetadataManager(_tableNameWithType, k, _primaryKeyColumns, _comparisonColumn,
-            _hashFunction, _partialUpsertHandler, _serverMetrics));
+            _hashFunction, _partialUpsertHandler, _validDocsSnapshotCreator, _serverMetrics));
   }
 
   public boolean isPartialUpsertEnabled() {

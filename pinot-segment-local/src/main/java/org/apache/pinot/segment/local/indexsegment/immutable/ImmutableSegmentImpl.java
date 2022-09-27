@@ -44,6 +44,7 @@ import org.apache.pinot.segment.spi.index.reader.InvertedIndexReader;
 import org.apache.pinot.segment.spi.index.startree.StarTreeV2;
 import org.apache.pinot.segment.spi.store.SegmentDirectory;
 import org.apache.pinot.spi.data.readers.GenericRow;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +64,7 @@ public class ImmutableSegmentImpl implements ImmutableSegment {
   // For upsert
   private PartitionUpsertMetadataManager _partitionUpsertMetadataManager;
   private ThreadSafeMutableRoaringBitmap _validDocIds;
+  private ImmutableRoaringBitmap _validDocSnapshots;
   private PinotSegmentRecordReader _pinotSegmentRecordReader;
 
   public ImmutableSegmentImpl(SegmentDirectory segmentDirectory, SegmentMetadataImpl segmentMetadata,
@@ -211,6 +213,16 @@ public class ImmutableSegmentImpl implements ImmutableSegment {
   @Override
   public List<StarTreeV2> getStarTrees() {
     return _starTreeIndexContainer != null ? _starTreeIndexContainer.getStarTrees() : null;
+  }
+
+  @Nullable
+  public void setValidDocSnapshots(ImmutableRoaringBitmap validDocSnapshots) {
+    _validDocSnapshots = validDocSnapshots;
+  }
+
+  @Nullable
+  public ImmutableRoaringBitmap getValidDocSnapshots() {
+    return _validDocSnapshots;
   }
 
   @Nullable
