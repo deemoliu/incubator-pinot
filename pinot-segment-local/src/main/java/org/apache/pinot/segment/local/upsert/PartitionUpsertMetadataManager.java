@@ -84,6 +84,10 @@ public interface PartitionUpsertMetadataManager extends Closeable {
    */
   GenericRow updateRecord(GenericRow record, RecordInfo recordInfo);
 
+  void removeExpiredPrimaryKeys(Comparable expiredTimestamp);
+
+  void persistSnapshotForStableSegment(long expiredTimestamp);
+
   /**
    * Stops the metadata manager. After invoking this method, no access to the metadata will be accepted.
    */

@@ -66,11 +66,13 @@ import org.apache.pinot.segment.local.utils.SchemaUtils;
 import org.apache.pinot.segment.local.utils.tablestate.TableStateUtils;
 import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.segment.spi.SegmentMetadata;
 import org.apache.pinot.spi.config.instance.InstanceDataManagerConfig;
 import org.apache.pinot.spi.config.table.DedupConfig;
 import org.apache.pinot.spi.config.table.IndexingConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.data.DateTimeFieldSpec;
 import org.apache.pinot.spi.data.DateTimeFormatSpec;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -360,6 +362,11 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
         && _tableUpsertMetadataManager.getUpsertMode() == UpsertConfig.Mode.PARTIAL;
   }
 
+  public boolean isUpsertTTLEnabled() {
+    return _tableUpsertMetadataManager != null
+        && _tableUpsertMetadataManager.getUpsertTTLConfig() != null;
+  }
+
   /*
    * This call comes in one of two ways:
    * For HL Segments:
@@ -515,8 +522,7 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     partitionDedupMetadataManager.addSegment(immutableSegment);
   }
 
-  private void handleUpsert(ImmutableSegment immutableSegment) {
-    String segmentName = immutableSegment.getSegmentName();
+  private PartitionUpsertMetadataManager getPartitionUpsertMetadataManagerBySegment(String segmentName) {
     _logger.info("Adding immutable segment: {} to upsert-enabled table: {}", segmentName, _tableNameWithType);
 
     Integer partitionId =
@@ -526,6 +532,25 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
             _tableNameWithType));
     PartitionUpsertMetadataManager partitionUpsertMetadataManager =
         _tableUpsertMetadataManager.getOrCreatePartitionManager(partitionId);
+    return partitionUpsertMetadataManager;
+  }
+
+  public void handleTTL(String segmentName, SegmentZKMetadata segmentZKMetadata, UpsertTTLConfig upsertTTLConfig) {
+    PartitionUpsertMetadataManager partitionUpsertMetadataManager =
+        getPartitionUpsertMetadataManagerBySegment(segmentName);
+
+    assert segmentZKMetadata != null;
+    long endTimeInMillis = segmentZKMetadata.getEndTimeMs();
+    long expiredTimestamp = endTimeInMillis - upsertTTLConfig.getTtlInMs();
+
+    partitionUpsertMetadataManager.removeExpiredPrimaryKeys(expiredTimestamp);
+    partitionUpsertMetadataManager.persistSnapshotForStableSegment(expiredTimestamp);
+  }
+
+  private void handleUpsert(ImmutableSegment immutableSegment) {
+    String segmentName = immutableSegment.getSegmentName();
+    PartitionUpsertMetadataManager partitionUpsertMetadataManager =
+        getPartitionUpsertMetadataManagerBySegment(segmentName);
 
     _serverMetrics.addValueToTableGauge(_tableNameWithType, ServerGauge.DOCUMENT_COUNT,
         immutableSegment.getSegmentMetadata().getTotalDocs());

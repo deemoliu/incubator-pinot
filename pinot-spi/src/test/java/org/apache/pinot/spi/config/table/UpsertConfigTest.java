@@ -20,6 +20,7 @@ package org.apache.pinot.spi.config.table;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -38,11 +39,23 @@ public class UpsertConfigTest {
     upsertConfig1.setHashFunction(HashFunction.MURMUR3);
     assertEquals(upsertConfig1.getHashFunction(), HashFunction.MURMUR3);
 
+    upsertConfig1.setUpsertTTLConfig(new UpsertTTLConfig("DAYS", "1"));
+    assertEquals(upsertConfig1.getUpsertTTLConfig().getTtlTimeUnit(), "DAYS");
+    assertEquals(upsertConfig1.getUpsertTTLConfig().getTtlTimeValue(), "1");
+
     UpsertConfig upsertConfig2 = new UpsertConfig(UpsertConfig.Mode.PARTIAL);
     Map<String, UpsertConfig.Strategy> partialUpsertStratgies = new HashMap<>();
     partialUpsertStratgies.put("myCol", UpsertConfig.Strategy.INCREMENT);
     upsertConfig2.setPartialUpsertStrategies(partialUpsertStratgies);
     upsertConfig2.setDefaultPartialUpsertStrategy(UpsertConfig.Strategy.OVERWRITE);
     assertEquals(upsertConfig2.getPartialUpsertStrategies(), partialUpsertStratgies);
+  }
+
+  @Test
+  public void testGetTtlInMs() {
+    Assert.assertEquals(new UpsertTTLConfig("DAYS", "1").getTtlInMs(), 86400000);
+    Assert.assertEquals(new UpsertTTLConfig("HOURS", "1").getTtlInMs(), 3600000);
+    Assert.assertEquals(new UpsertTTLConfig("MINUTES", "1").getTtlInMs(), 60000);
+    Assert.assertEquals(new UpsertTTLConfig("SECONDS", "1").getTtlInMs(), 1000);
   }
 }

@@ -1199,6 +1199,11 @@ public class LLRealtimeSegmentDataManager extends RealtimeSegmentDataManager {
           downloadSegmentAndReplace(segmentZKMetadata);
           break;
       }
+      if (_tableConfig.getUpsertConfig().isEnableTTL()) {
+        // todo: during segment commit (from consuming to online), we need to do a one-time PK cleanup
+        // and persist snapshot for out-of-retention segments
+        _realtimeTableDataManager.handleTTL(_segmentNameStr, segmentZKMetadata, _tableConfig.getUpsertConfig().getUpsertTTLConfig());
+      }
     } catch (Exception e) {
       Utils.rethrowException(e);
     } finally {

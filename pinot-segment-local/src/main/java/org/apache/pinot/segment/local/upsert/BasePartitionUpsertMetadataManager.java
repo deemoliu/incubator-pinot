@@ -41,6 +41,7 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.slf4j.Logger;
@@ -57,6 +58,7 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
   protected final String _comparisonColumn;
   protected final HashFunction _hashFunction;
   protected final PartialUpsertHandler _partialUpsertHandler;
+  protected final UpsertTTLConfig _upsertTTLConfig;
   protected final boolean _enableSnapshot;
   protected final ServerMetrics _serverMetrics;
   protected final Logger _logger;
@@ -73,13 +75,15 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
 
   protected BasePartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, String comparisonColumn, HashFunction hashFunction,
-      @Nullable PartialUpsertHandler partialUpsertHandler, boolean enableSnapshot, ServerMetrics serverMetrics) {
+      @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
+      boolean enableSnapshot, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumn = comparisonColumn;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _upsertTTLConfig = upsertTTLConfig;
     _enableSnapshot = enableSnapshot;
     _serverMetrics = serverMetrics;
     _logger = LoggerFactory.getLogger(tableNameWithType + "-" + partitionId + "-" + getClass().getSimpleName());
@@ -180,6 +184,13 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
       Iterator<RecordInfo> recordInfoIterator, @Nullable IndexSegment oldSegment,
       @Nullable MutableRoaringBitmap validDocIdsForOldSegment);
 
+  /**
+   * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
+   */
+  public abstract void removeExpiredPrimaryKeys(Comparable timestamp);
+
+  public abstract void persistSnapshotForStableSegment(long expiredTimestamp);
+
   @Override
   public void addRecord(MutableSegment segment, RecordInfo recordInfo) {
     if (_stopped) {
@@ -265,6 +276,24 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
         }
         addOrReplaceSegment((ImmutableSegmentImpl) segment, validDocIds, recordInfoIterator, oldSegment,
             validDocIdsForOldSegment);
+
+        // remove expired primary keys from primary key indexes.
+        if (_upsertTTLConfig != null) {
+          assert segment.getSegmentMetadata() != null;
+          TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
+          long endTimeInMillis = timeUnit.toMillis(segment.getSegmentMetadata().getEndTime());
+          long expiredTimestamp = endTimeInMillis - _upsertTTLConfig.getTtlInMs();
+
+          removeExpiredPrimaryKeys(expiredTimestamp);
+          persistSnapshotForStableSegment(expiredTimestamp);
+
+          MutableRoaringBitmap validDocIdsSnapshot =
+              segment.getValidDocIds() != null ? segment.getValidDocIds().getMutableRoaringBitmap() : null;
+
+          if (validDocIdsSnapshot != null) {
+            ((ImmutableSegmentImpl) segment).persistValidDocIdsSnapshot(validDocIdsSnapshot);
+          }
+        }
       }
 
       if (validDocIdsForOldSegment != null && !validDocIdsForOldSegment.isEmpty()) {

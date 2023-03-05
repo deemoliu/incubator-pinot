@@ -57,11 +57,17 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("Whether to use snapshot for fast upsert metadata recovery")
   private boolean _enableSnapshot;
 
+  @JsonPropertyDescription("Whether to use TTL to reduce upsert metadata memory footprint")
+  private boolean _enableTTL;
+
   @JsonPropertyDescription("Custom class for upsert metadata manager")
   private String _metadataManagerClass;
 
   @JsonPropertyDescription("Custom configs for upsert metadata manager")
   private Map<String, String> _metadataManagerConfigs;
+
+  @JsonPropertyDescription("Upsert TTL config")
+  private UpsertTTLConfig _upsertTTLConfig;
 
   @Deprecated
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
@@ -118,6 +124,10 @@ public class UpsertConfig extends BaseJsonConfig {
     return _enableSnapshot;
   }
 
+  public boolean isEnableTTL() {
+    return _enableTTL;
+  }
+
   @Nullable
   public String getMetadataManagerClass() {
     return _metadataManagerClass;
@@ -126,6 +136,11 @@ public class UpsertConfig extends BaseJsonConfig {
   @Nullable
   public Map<String, String> getMetadataManagerConfigs() {
     return _metadataManagerConfigs;
+  }
+
+  @Nullable
+  public UpsertTTLConfig getUpsertTTLConfig() {
+    return _upsertTTLConfig;
   }
 
   public void setHashFunction(HashFunction hashFunction) {
@@ -164,11 +179,19 @@ public class UpsertConfig extends BaseJsonConfig {
     _enableSnapshot = enableSnapshot;
   }
 
+  public void setEnableTTL(boolean enableTTL) {
+    _enableTTL = enableTTL;
+  }
+
   public void setMetadataManagerClass(String metadataManagerClass) {
     _metadataManagerClass = metadataManagerClass;
   }
 
   public void setMetadataManagerConfigs(Map<String, String> metadataManagerConfigs) {
     _metadataManagerConfigs = metadataManagerConfigs;
+  }
+
+  public void setUpsertTTLConfig(@Nullable UpsertTTLConfig upsertTTLConfig) {
+    _upsertTTLConfig = upsertTTLConfig;
   }
 }
