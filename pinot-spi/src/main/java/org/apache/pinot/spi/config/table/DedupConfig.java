@@ -20,6 +20,8 @@ package org.apache.pinot.spi.config.table;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import javax.annotation.Nullable;
 import org.apache.pinot.spi.config.BaseJsonConfig;
 
 public class DedupConfig extends BaseJsonConfig {
@@ -27,18 +29,23 @@ public class DedupConfig extends BaseJsonConfig {
   private final HashFunction _hashFunction;
   private final String _metadataManagerClass;
 
+  @JsonPropertyDescription("TTL config for dedup")
+  private final TTLConfig _ttlConfig;
+
   public DedupConfig(@JsonProperty(value = "dedupEnabled", required = true) boolean dedupEnabled,
       @JsonProperty(value = "hashFunction") HashFunction hashFunction) {
-    this(dedupEnabled, hashFunction, null);
+    this(dedupEnabled, hashFunction, null, null);
   }
+
   @JsonCreator
   public DedupConfig(@JsonProperty(value = "dedupEnabled", required = true) boolean dedupEnabled,
       @JsonProperty(value = "hashFunction") HashFunction hashFunction,
-      @JsonProperty(value = "metadataManagerClass") String metadataManagerClass
-  ) {
+      @JsonProperty(value = "metadataManagerClass") String metadataManagerClass,
+      @JsonProperty(value = "ttlConfig") TTLConfig ttlConfig) {
     _dedupEnabled = dedupEnabled;
     _hashFunction = hashFunction == null ? HashFunction.NONE : hashFunction;
     _metadataManagerClass = metadataManagerClass;
+    _ttlConfig = ttlConfig;
   }
 
   public HashFunction getHashFunction() {
@@ -51,5 +58,10 @@ public class DedupConfig extends BaseJsonConfig {
 
   public String getMetadataManagerClass() {
     return _metadataManagerClass;
+  }
+
+  @Nullable
+  public TTLConfig getTtlConfig() {
+    return _ttlConfig;
   }
 }

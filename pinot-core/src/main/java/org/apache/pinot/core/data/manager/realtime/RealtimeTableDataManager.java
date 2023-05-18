@@ -70,6 +70,7 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.spi.config.instance.InstanceDataManagerConfig;
 import org.apache.pinot.spi.config.table.DedupConfig;
 import org.apache.pinot.spi.config.table.IndexingConfig;
+import org.apache.pinot.spi.config.table.TTLConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.data.DateTimeFieldSpec;
@@ -499,6 +500,31 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       buildDedupMeta((ImmutableSegmentImpl) immutableSegment);
     }
     super.addSegment(immutableSegment);
+  }
+
+
+  /**
+   * Handle Dedup TTL during segment state change from CONSUMING to ONLINE.
+   *
+   * When a new segments commit, we will remove primary key indexes from heap that has timestamp < (eventTime - TTL).
+   * For all segments sealed before (eventTime-TTL), their validDocIds won't get updated. We do an one-time persistence.
+   */
+  protected void handleDedupTTL(String segmentName, SegmentZKMetadata segmentZKMetadata, TTLConfig dedupTTLConfig) {
+    _logger.info("Adding immutable segment: {} to upsert-enabled table: {}", segmentName, _tableNameWithType);
+
+    Integer partitionId =
+        SegmentUtils.getRealtimeSegmentPartitionId(segmentName, _tableNameWithType, _helixManager, null);
+    Preconditions.checkNotNull(partitionId,
+        String.format("Failed to get partition id for segment: %s (upsert-enabled table: %s)", segmentName,
+            _tableNameWithType));
+    PartitionDedupMetadataManager partitionDedupMetadataManager =
+        _tableDedupMetadataManager.getOrCreatePartitionManager(partitionId);
+
+    assert segmentZKMetadata != null;
+    long endTimeInMillis = segmentZKMetadata.getEndTimeMs();
+    long expiredTimestamp = endTimeInMillis - dedupTTLConfig.getTtlInMs();
+
+    partitionDedupMetadataManager.removeExpiredPrimaryKeys(expiredTimestamp);
   }
 
   private void buildDedupMeta(ImmutableSegmentImpl immutableSegment) {

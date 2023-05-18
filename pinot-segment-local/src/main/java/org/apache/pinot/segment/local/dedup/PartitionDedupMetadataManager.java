@@ -38,4 +38,9 @@ public interface PartitionDedupMetadataManager {
    * Returns true if the key was already present.
    */
   boolean checkRecordPresentOrUpdate(PrimaryKey pk, IndexSegment indexSegment);
+
+  /**
+   * Remove from the primary key index when the PK are expired if TTL is enabled.
+   */
+  void removeExpiredPrimaryKeys(long expiredTimestamp);
 }

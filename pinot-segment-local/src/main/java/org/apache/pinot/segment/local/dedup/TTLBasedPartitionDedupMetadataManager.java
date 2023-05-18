@@ -30,20 +30,24 @@ import org.apache.pinot.segment.local.segment.readers.PinotSegmentColumnReader;
 import org.apache.pinot.segment.local.utils.HashUtils;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.spi.config.table.HashFunction;
+import org.apache.pinot.spi.config.table.TTLConfig;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.apache.pinot.spi.utils.ByteArray;
 
-class ConcurrentMapPartitionDedupMetadataManager implements PartitionDedupMetadataManager {
+
+class TTLBasedPartitionDedupMetadataManager implements PartitionDedupMetadataManager {
   private final String _tableNameWithType;
   private final List<String> _primaryKeyColumns;
   private final int _partitionId;
   private final ServerMetrics _serverMetrics;
   private final HashFunction _hashFunction;
 
+  private final TTLConfig _ttlConfig;
+
   @VisibleForTesting
   final ConcurrentHashMap<Object, IndexSegment> _primaryKeyToSegmentMap = new ConcurrentHashMap<>();
 
-  public ConcurrentMapPartitionDedupMetadataManager(String tableNameWithType, List<String> primaryKeyColumns,
+  public TTLBasedPartitionDedupMetadataManager(String tableNameWithType, List<String> primaryKeyColumns,
       int partitionId, ServerMetrics serverMetrics, HashFunction hashFunction) {
     _tableNameWithType = tableNameWithType;
     _primaryKeyColumns = primaryKeyColumns;
@@ -127,5 +131,27 @@ class ConcurrentMapPartitionDedupMetadataManager implements PartitionDedupMetada
    */
   @Override
   public void removeExpiredPrimaryKeys(long timestamp) {
+    if (_ttlConfig != null && _ttlConfig.getTtlInMs() > 0) {
+      doRemoveExpiredPrimaryKeys(timestamp);
+    }
+  }
+
+  /**
+   * When TTL is enabled for dedup, this function is used to remove expired keys from the primary key indexes.
+   *
+   * When committing consuming segment, we replace the consuming segment with an immutable segments.
+   * After replaceSegment, we iterate over recordInfoIterator to find validDocIds that are expired (out-of-TTL).
+   * Primarykey expired when the comparison time value of the record is less or equal to (segmentEndTime - TTL).
+   *
+   * @param expiredTimestamp segmentEndTime - TTLTime (converted ttl time values in millis time unit)
+   * @return void
+   */
+  public void doRemoveExpiredPrimaryKeys(long expiredTimestamp) {
+    _primaryKeyToSegmentMap.forEach((primaryKey, indexSegment) -> {
+      if (indexSegment.getSegmentMetadata().getEndTime() < expiredTimestamp) {
+        indexSegment
+        _primaryKeyToSegmentMap.remove(primaryKey, indexSegment);
+      }
+    });
   }
 }
