@@ -1069,6 +1069,7 @@ public class LLRealtimeSegmentDataManager extends RealtimeSegmentDataManager {
     closePartitionGroupConsumer();
     closePartitionMetadataProvider();
     if (_acquiredConsumerSemaphore.compareAndSet(true, false)) {
+      // todo: check snapshot, disable isAllowConsumer flag.
       _partitionGroupConsumerSemaphore.release();
     }
   }

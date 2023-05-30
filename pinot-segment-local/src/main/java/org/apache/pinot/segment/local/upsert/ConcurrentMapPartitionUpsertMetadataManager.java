@@ -78,6 +78,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     AtomicInteger numKeysInWrongSegment = new AtomicInteger();
     while (recordInfoIterator.hasNext()) {
       RecordInfo recordInfo = recordInfoIterator.next();
+      // todo: for ttl enabeld, do not add out-of-ttl pk to make to avoid memory issue
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
             if (currentRecordLocation != null) {
