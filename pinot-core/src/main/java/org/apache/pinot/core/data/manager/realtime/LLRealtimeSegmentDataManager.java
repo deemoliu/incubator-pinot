@@ -47,7 +47,9 @@ import org.apache.pinot.common.restlet.resources.SegmentErrorInfo;
 import org.apache.pinot.common.utils.LLCSegmentName;
 import org.apache.pinot.common.utils.TarGzCompressionUtils;
 import org.apache.pinot.core.data.manager.realtime.RealtimeConsumptionRateManager.ConsumptionRateLimiter;
+import org.apache.pinot.segment.local.data.manager.SegmentDataManager;
 import org.apache.pinot.segment.local.dedup.PartitionDedupMetadataManager;
+import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImpl;
 import org.apache.pinot.segment.local.indexsegment.mutable.MutableSegmentImpl;
 import org.apache.pinot.segment.local.realtime.converter.ColumnIndicesForRealtimeTable;
 import org.apache.pinot.segment.local.realtime.converter.RealtimeSegmentConverter;
@@ -56,6 +58,7 @@ import org.apache.pinot.segment.local.segment.creator.TransformPipeline;
 import org.apache.pinot.segment.local.segment.index.loader.IndexLoadingConfig;
 import org.apache.pinot.segment.local.upsert.PartitionUpsertMetadataManager;
 import org.apache.pinot.segment.local.utils.IngestionUtils;
+import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.V1Constants;
 import org.apache.pinot.segment.spi.creator.SegmentVersion;
@@ -97,6 +100,7 @@ import org.apache.pinot.spi.utils.CommonConstants.Segment.Realtime.CompletionMod
 import org.apache.pinot.spi.utils.IngestionConfigUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1426,6 +1430,28 @@ public class LLRealtimeSegmentDataManager extends RealtimeSegmentDataManager {
     try {
       _partitionGroupConsumerSemaphore.acquire();
       _acquiredConsumerSemaphore.set(true);
+
+      if (_tableConfig.getUpsertConfig() != null && _tableConfig.getUpsertConfig().isEnableSnapshot()) {
+        // persist snapshot for all sealed segments
+        // TODO: Use a semaphore to guarantee all the segments are sealed before persisting snapshot.
+        List<SegmentDataManager> allSegments = _realtimeTableDataManager.acquireAllSegments();
+        for (SegmentDataManager segmentDataManager: allSegments) {
+          if (segmentDataManager.getSegment() instanceof ImmutableSegment) {
+            MutableRoaringBitmap validDocIds = new MutableRoaringBitmap();
+            if (segmentDataManager.getSegment().getValidDocIds() != null) {
+              validDocIds = segmentDataManager.getSegment().getValidDocIds().getMutableRoaringBitmap();
+            }
+            ((ImmutableSegmentImpl) segmentDataManager.getSegment()).persistValidDocIdsSnapshot(validDocIds);
+          }
+        }
+      }
+
+      if (_tableConfig.getUpsertConfig() != null && _tableConfig.getUpsertConfig().getUpsertTTLConfig() != null) {
+        assert segmentZKMetadata != null;
+        long endTimeInMillis = segmentZKMetadata.getEndTimeMs();
+        long expiredTimestamp = endTimeInMillis -_tableConfig.getUpsertConfig().getUpsertTTLConfig().getTtlInMs();
+        partitionUpsertMetadataManager.removeExpiredPrimaryKeys(expiredTimestamp);
+      }
     } catch (InterruptedException e) {
       String errorMsg = "InterruptedException when acquiring the partitionConsumerSemaphore";
       _segmentLogger.error(errorMsg);

@@ -63,6 +63,9 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("Custom configs for upsert metadata manager")
   private Map<String, String> _metadataManagerConfigs;
 
+  @JsonPropertyDescription("Upsert TTL config")
+  private UpsertTTLConfig _upsertTTLConfig;
+
   public UpsertConfig(Mode mode) {
     _mode = mode;
   }
@@ -108,6 +111,11 @@ public class UpsertConfig extends BaseJsonConfig {
   @Nullable
   public Map<String, String> getMetadataManagerConfigs() {
     return _metadataManagerConfigs;
+  }
+
+  @Nullable
+  public UpsertTTLConfig getUpsertTTLConfig() {
+    return _upsertTTLConfig;
   }
 
   public void setHashFunction(HashFunction hashFunction) {
@@ -164,5 +172,9 @@ public class UpsertConfig extends BaseJsonConfig {
 
   public void setMetadataManagerConfigs(Map<String, String> metadataManagerConfigs) {
     _metadataManagerConfigs = metadataManagerConfigs;
+  }
+
+  public void setUpsertTTLConfig(@Nullable UpsertTTLConfig upsertTTLConfig) {
+    _upsertTTLConfig = upsertTTLConfig;
   }
 }

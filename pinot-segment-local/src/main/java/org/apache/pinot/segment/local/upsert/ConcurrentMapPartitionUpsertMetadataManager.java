@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
@@ -37,6 +39,7 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.roaringbitmap.PeekableIntIterator;
@@ -53,14 +56,22 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   @VisibleForTesting
   final ConcurrentHashMap<Object, RecordLocation> _primaryKeyToRecordLocationMap = new ConcurrentHashMap<>();
 
+  // keep track of all segments that haven't reach stable state to persist snapshot
+  @VisibleForTesting
+  PriorityBlockingQueue<SegmentInfo> _nonPersistedSegmentsQueue = null;
+
   // Reused for reading previous record during partial upsert
   private final GenericRow _reuse = new GenericRow();
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
-      @Nullable PartialUpsertHandler partialUpsertHandler, boolean enableSnapshot, ServerMetrics serverMetrics) {
+      @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
+      boolean enableSnapshot, ServerMetrics serverMetrics) {
     super(tableNameWithType, partitionId, primaryKeyColumns, comparisonColumns, hashFunction, partialUpsertHandler,
-        enableSnapshot, serverMetrics);
+        upsertTTLConfig, enableSnapshot, serverMetrics);
+    if (upsertTTLConfig != null && upsertTTLConfig.getTtlInMs() > 0) {
+      _nonPersistedSegmentsQueue = new PriorityBlockingQueue<>();
+    }
   }
 
   @Override
@@ -74,10 +85,29 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       @Nullable MutableRoaringBitmap validDocIdsForOldSegment) {
     String segmentName = segment.getSegmentName();
     segment.enableUpsert(this, validDocIds);
+    if (_upsertTTLConfig != null && _upsertTTLConfig.getTtlInMs() > 0) {
+      long endTime = segment.getSegmentMetadata().getEndTime();
+      TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
+      long endTimeMs = timeUnit.toMillis(endTime);
+      if (_nonPersistedSegmentsQueue != null) {
+        _nonPersistedSegmentsQueue.add(new SegmentInfo(segment, endTimeMs));
+      }
+    }
 
     AtomicInteger numKeysInWrongSegment = new AtomicInteger();
     while (recordInfoIterator.hasNext()) {
       RecordInfo recordInfo = recordInfoIterator.next();
+      // Skip record PKs that are out of TTL in concurrentHashmap, if TTL is enabled.
+      if (_upsertTTLConfig != null && _upsertTTLConfig.getTtlInMs() > 0) {
+        assert recordInfo.getComparisonValue() != null;
+        long endTime = segment.getSegmentMetadata().getEndTime();
+        TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
+        long endTimeInMillis = timeUnit.toMillis(endTime);
+        long expiredTimestamp = endTimeInMillis -_upsertTTLConfig.getTtlInMs();
+        if (recordInfo.getComparisonValue().compareTo(expiredTimestamp) < 0) {
+          continue;
+        }
+      }
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
             if (currentRecordLocation != null) {
@@ -173,11 +203,68 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               }
               return recordLocation;
             });
+        if (_nonPersistedSegmentsQueue != null) {
+          _nonPersistedSegmentsQueue.remove(new SegmentInfo(segment, segment.getSegmentMetadata().getEndTime()));
+        }
       }
     } catch (Exception e) {
       throw new RuntimeException(
           String.format("Caught exception while removing segment: %s, table: %s", segment.getSegmentName(),
               _tableNameWithType), e);
+    }
+  }
+
+  /**
+   * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
+   *
+   * When committing consuming segment, we replace the consuming segment with an immutable segments.
+   * After replaceSegment, we iterate over recordInfoIterator to find validDocIds that are expired (out-of-TTL).
+   * Primarykey expired when the comparison time value of the record is less or equal to (segmentEndTime - TTL).
+   *
+   * @param expiredTimestamp segmentEndTime - TTLTime (converted ttl time values in millis time unit)
+   * @return void
+   */
+  @Override
+  public void doRemoveExpiredPrimaryKeys(Comparable expiredTimestamp) {
+    _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
+      assert recordLocation.getComparisonValue() != null;
+      if (recordLocation.getComparisonValue().compareTo(expiredTimestamp) < 0) {
+        _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
+      }
+    });
+  }
+
+  /**
+   * When TTL is enabled for upsert, this function is do one time validDocIdsSnapshot persistance for stable segments.
+   * A segment is stable when its endTime < new segmentTime - TTL.
+   *
+   * When the consuming segment get sealed, immutable segments that haven't been persisted are stored in the
+   * _nonPersistedSegmentsQueue and sorted by endTime.
+   * Comparing the endTime of these segments with the expiredTimestamp, if expired, persist the validDocIds snapshot and
+   * removed the segment from _nonPersistedSegmentsQueue.
+   *
+   * @param expiredTimestamp segmentEndTime - TTLTime (converted ttl time values in millis time unit).
+   * @return void
+   */
+  @Override
+  public void doPersistSnapshotForStableSegment(long expiredTimestamp) {
+    if (_nonPersistedSegmentsQueue == null) {
+      throw new RuntimeException(
+          String.format("Caught exception while persisting snapshot: segments queue not initialized, table: %s",
+              _tableNameWithType));
+    }
+    if (_nonPersistedSegmentsQueue.size() == 0) {
+      return;
+    }
+    while (_nonPersistedSegmentsQueue.peek()._endTimeMs < expiredTimestamp) {
+      IndexSegment segment = _nonPersistedSegmentsQueue.poll()._segment;
+
+      MutableRoaringBitmap validDocIds =
+          segment.getValidDocIds() != null ? segment.getValidDocIds().getMutableRoaringBitmap() : null;
+
+      if (segment instanceof ImmutableSegmentImpl && validDocIds != null) {
+        ((ImmutableSegmentImpl) segment).persistValidDocIdsSnapshot(validDocIds);
+      }
     }
   }
 
@@ -265,6 +352,30 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
     public Comparable getComparisonValue() {
       return _comparisonValue;
+    }
+  }
+
+  @VisibleForTesting
+  static class SegmentInfo implements Comparable<SegmentInfo> {
+    private final IndexSegment _segment;
+    private final long _endTimeMs;
+
+    public SegmentInfo(IndexSegment indexSegment, long endTimeMs) {
+      _segment = indexSegment;
+      _endTimeMs = endTimeMs;
+    }
+
+    public IndexSegment getSegment() {
+      return _segment;
+    }
+
+    public long getEndTimeMs() {
+      return _endTimeMs;
+    }
+
+    @Override
+    public int compareTo(SegmentInfo si) {
+      return Long.compare(_endTimeMs, si._endTimeMs);
     }
   }
 }
