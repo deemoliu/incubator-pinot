@@ -37,6 +37,7 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.roaringbitmap.PeekableIntIterator;
@@ -58,9 +59,10 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
-      @Nullable PartialUpsertHandler partialUpsertHandler, boolean enableSnapshot, ServerMetrics serverMetrics) {
+      @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
+      boolean enableSnapshot, ServerMetrics serverMetrics) {
     super(tableNameWithType, partitionId, primaryKeyColumns, comparisonColumns, hashFunction, partialUpsertHandler,
-        enableSnapshot, serverMetrics);
+        upsertTTLConfig, enableSnapshot, serverMetrics);
   }
 
   @Override
@@ -179,6 +181,26 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
           String.format("Caught exception while removing segment: %s, table: %s", segment.getSegmentName(),
               _tableNameWithType), e);
     }
+  }
+
+  /**
+   * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
+   *
+   * When committing consuming segment, we replace the consuming segment with an immutable segments.
+   * After replaceSegment, we iterate over recordInfoIterator to find validDocIds that are expired (out-of-TTL).
+   * Primarykey expired when the comparison time value of the record is less or equal to (segmentEndTime - TTL).
+   *
+   * @param expiredTimestamp segmentEndTime - TTLTime (converted ttl time values in millis time unit)
+   * @return void
+   */
+  @Override
+  public void doRemoveExpiredPrimaryKeys(Comparable expiredTimestamp) {
+    _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
+      assert recordLocation.getComparisonValue() != null;
+      if (recordLocation.getComparisonValue().compareTo(expiredTimestamp) < 0) {
+        _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
+      }
+    });
   }
 
   @Override

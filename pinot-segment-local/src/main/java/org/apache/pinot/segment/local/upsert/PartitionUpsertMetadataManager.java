@@ -85,6 +85,11 @@ public interface PartitionUpsertMetadataManager extends Closeable {
   GenericRow updateRecord(GenericRow record, RecordInfo recordInfo);
 
   /**
+   * Remove from the primary key index when the PK are expired if TTL is enabled.
+   */
+  void removeExpiredPrimaryKeys(Comparable expiredTimestamp);
+
+  /**
    * Takes snapshot for all the tracked immutable segments when snapshot is enabled. This method should be invoked
    * before a new consuming segment starts consuming.
    */

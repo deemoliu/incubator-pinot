@@ -43,6 +43,7 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.slf4j.Logger;
@@ -59,6 +60,7 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
   protected final List<String> _comparisonColumns;
   protected final HashFunction _hashFunction;
   protected final PartialUpsertHandler _partialUpsertHandler;
+  protected final UpsertTTLConfig _upsertTTLConfig;
   protected final boolean _enableSnapshot;
   protected final ServerMetrics _serverMetrics;
   protected final Logger _logger;
@@ -79,13 +81,15 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
 
   protected BasePartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
-      @Nullable PartialUpsertHandler partialUpsertHandler, boolean enableSnapshot, ServerMetrics serverMetrics) {
+      @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
+      boolean enableSnapshot, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
     _comparisonColumns = comparisonColumns;
     _hashFunction = hashFunction;
     _partialUpsertHandler = partialUpsertHandler;
+    _upsertTTLConfig = upsertTTLConfig;
     _enableSnapshot = enableSnapshot;
     _snapshotLock = enableSnapshot ? new ReentrantReadWriteLock() : null;
     _serverMetrics = serverMetrics;
@@ -472,6 +476,18 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
       }
     }
   }
+
+  /**
+   * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
+   */
+  @Override
+  public void removeExpiredPrimaryKeys(Comparable timestamp) {
+    if (_upsertTTLConfig.getTtlInMs() > 0) {
+      doRemoveExpiredPrimaryKeys(timestamp);
+    }
+  }
+
+  protected abstract void doRemoveExpiredPrimaryKeys(Comparable timestamp);
 
   @Override
   public void stop() {
