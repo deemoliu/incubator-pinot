@@ -444,7 +444,7 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{0, 1, 2, 3});
   }
 
-  // Add the following utils function since Comparison columns is a long value for TTL enabled upsert table.
+  // Add the following utils function since the Comparison column is a long value for TTL enabled upsert table.
   private List<RecordInfo> getRecordInfoListForTTL(int numRecords, int[] primaryKeys, int[] timestamps) {
     List<RecordInfo> recordInfoList = new ArrayList<>();
     for (int i = 0; i < numRecords; i++) {
@@ -454,6 +454,7 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     return recordInfoList;
   }
 
+  // Add the following utils function since the Comparison column is a long value for TTL enabled upsert table.
   private static void checkRecordLocationForTTL(Map<Object, RecordLocation> recordLocationMap, int keyValue,
       IndexSegment segment, int docId, int comparisonValue, HashFunction hashFunction) {
     RecordLocation recordLocation =
@@ -464,7 +465,7 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     assertEquals(recordLocation.getComparisonValue(), new Long(comparisonValue));
   }
 
-  public void verifyPersistAndLoadWatermark() {
+  private void verifyPersistAndLoadWatermark() {
     UpsertTTLConfig ttlConfig = new UpsertTTLConfig(TimeUnit.MILLISECONDS, 10);
     ConcurrentMapPartitionUpsertMetadataManager upsertMetadataManager =
         new ConcurrentMapPartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"),
