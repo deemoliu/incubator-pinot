@@ -19,9 +19,10 @@
 package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
-import java.io.DataOutputStream;
+import com.google.common.primitives.Longs;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
@@ -314,8 +315,8 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
           return;
         }
       }
-      try (DataOutputStream dataOutputStream = new DataOutputStream(new FileOutputStream(watermarkFile))) {
-        dataOutputStream.writeLong(_lastExpiredTimeMS);
+      try (OutputStream outputStream = new FileOutputStream(watermarkFile, false)) {
+        outputStream.write(Longs.toByteArray(watermark));
       }
       _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", _lastExpiredTimeMS,
           _tableNameWithType, _partitionId);
