@@ -86,6 +86,12 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       Iterator<RecordInfo> recordInfoIterator, @Nullable IndexSegment oldSegment,
       @Nullable MutableRoaringBitmap validDocIdsForOldSegment) {
     String segmentName = segment.getSegmentName();
+    // Skip the segments that has a segment endTime earlier than the TTL watermark.
+    if (_upsertTTLConfig != null) {
+      if (segment.getSegmentMetadata().getEndTime() < _lastExpiredTimeMS) {
+        return;
+      }
+    }
     segment.enableUpsert(this, validDocIds);
 
     AtomicInteger numKeysInWrongSegment = new AtomicInteger();
@@ -94,7 +100,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
             if (currentRecordLocation != null) {
-              // Skip the record that has a comparisonValue timestamp earlier than the TTL watermark.
+              // Skip the records that has a comparisonValue timestamp earlier than the TTL watermark.
               if (_upsertTTLConfig != null) {
                 if (currentRecordLocation._comparisonValue.compareTo(_lastExpiredTimeMS) < 0) {
                   return currentRecordLocation;
@@ -203,12 +209,9 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
   /**
    * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
+   * This function will be called before new consuming segment start to consume.
    *
-   * When committing consuming segment, we replace the consuming segment with an immutable segments.
-   * After replaceSegment, we iterate over recordInfoIterator to find validDocIds that are expired (out-of-TTL).
-   * Primarykey expired when the comparison time value of the record is less or equal to (segmentEndTime - TTL).
-   *
-   * @param watermark segmentEndTime - TTLTime (converted ttl time values in millis time unit)
+   * @param watermark The watermark is the time used to clean up the metadata in the previous round
    * @return void
    */
   @Override
