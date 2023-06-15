@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
@@ -88,7 +89,9 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     String segmentName = segment.getSegmentName();
     // Skip the segments that has a segment endTime earlier than the TTL watermark.
     if (_upsertTTLConfig != null) {
-      if (segment.getSegmentMetadata().getEndTime() < _lastExpiredTimeMS) {
+      TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
+      long endTime = segment.getSegmentMetadata().getEndTime();
+      if (timeUnit.toMillis(endTime) < _lastExpiredTimeMS) {
         return;
       }
     }

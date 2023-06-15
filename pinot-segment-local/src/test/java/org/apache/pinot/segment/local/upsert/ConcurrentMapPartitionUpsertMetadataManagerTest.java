@@ -287,6 +287,16 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     return segment;
   }
 
+  private static ImmutableSegmentImpl mockImmutableSegmentWithZKMetadata(int sequenceNumber,
+      ThreadSafeMutableRoaringBitmap validDocIds, List<PrimaryKey> primaryKeys, long endTime, TimeUnit timeUnit) {
+    ImmutableSegmentImpl segment = mockImmutableSegment(sequenceNumber, validDocIds, primaryKeys);
+    SegmentMetadataImpl segmentMetadata = mock(SegmentMetadataImpl.class);
+    when(segment.getSegmentMetadata()).thenReturn(segmentMetadata);
+    when(segmentMetadata.getEndTime()).thenReturn(endTime);
+    when(segmentMetadata.getTimeUnit()).thenReturn(timeUnit);
+    return segment;
+  }
+
   private static EmptyIndexSegment mockEmptySegment(int sequenceNumber) {
     SegmentMetadataImpl segmentMetadata = mock(SegmentMetadataImpl.class);
     when(segmentMetadata.getName()).thenReturn(getSegmentName(sequenceNumber));
@@ -426,7 +436,8 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     int[] timestamps = new int[]{100, 100, 120, 80};
     ThreadSafeMutableRoaringBitmap validDocIds1 = new ThreadSafeMutableRoaringBitmap();
     List<PrimaryKey> primaryKeys1 = getPrimaryKeyList(numRecords, primaryKeys);
-    ImmutableSegmentImpl segment1 = mockImmutableSegment(1, validDocIds1, primaryKeys1);
+    ImmutableSegmentImpl segment1 =
+        mockImmutableSegmentWithZKMetadata(1, validDocIds1, primaryKeys1, 120, TimeUnit.MILLISECONDS);
 
     int[] docIds1 = new int[]{0, 1, 2, 3};
     MutableRoaringBitmap validDocIdsSnapshot1 = new MutableRoaringBitmap();
