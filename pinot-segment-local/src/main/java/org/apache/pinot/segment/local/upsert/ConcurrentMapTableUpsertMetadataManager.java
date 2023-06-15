@@ -37,7 +37,7 @@ public class ConcurrentMapTableUpsertMetadataManager extends BaseTableUpsertMeta
     return _partitionMetadataManagerMap.computeIfAbsent(partitionId,
         k -> new ConcurrentMapPartitionUpsertMetadataManager(_tableNameWithType, k, _primaryKeyColumns,
             _comparisonColumns, _hashFunction, _partialUpsertHandler, _upsertTTLConfig, _enableSnapshot,
-            _serverMetrics));
+            _tableIndexDir, _serverMetrics));
   }
 
   @Override

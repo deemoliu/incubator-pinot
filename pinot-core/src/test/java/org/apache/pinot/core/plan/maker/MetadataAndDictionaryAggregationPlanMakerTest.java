@@ -127,12 +127,13 @@ public class MetadataAndDictionaryAggregationPlanMakerTest {
   public void loadSegment()
       throws Exception {
     _indexSegment = ImmutableSegmentLoader.load(new File(INDEX_DIR, SEGMENT_NAME), ReadMode.heap);
+    File tableIndexDir = Mockito.mock(File.class);
     ServerMetrics serverMetrics = Mockito.mock(ServerMetrics.class);
     _upsertIndexSegment = ImmutableSegmentLoader.load(new File(INDEX_DIR, SEGMENT_NAME), ReadMode.heap);
     ((ImmutableSegmentImpl) _upsertIndexSegment).enableUpsert(
         new ConcurrentMapPartitionUpsertMetadataManager("testTable_REALTIME", 0, Collections.singletonList("column6"),
-            Collections.singletonList("daysSinceEpoch"), HashFunction.NONE, null, null, false, serverMetrics),
-        new ThreadSafeMutableRoaringBitmap());
+            Collections.singletonList("daysSinceEpoch"), HashFunction.NONE, null, null, false, tableIndexDir,
+            serverMetrics), new ThreadSafeMutableRoaringBitmap());
   }
 
   @AfterClass

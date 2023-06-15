@@ -19,6 +19,10 @@
 package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import org.apache.commons.io.FileUtils;
 import org.apache.pinot.common.metrics.ServerGauge;
 import org.apache.pinot.common.metrics.ServerMeter;
 import org.apache.pinot.common.metrics.ServerMetrics;
@@ -35,6 +40,7 @@ import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImp
 import org.apache.pinot.segment.local.utils.HashUtils;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
+import org.apache.pinot.segment.spi.V1Constants;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
 import org.apache.pinot.spi.config.table.UpsertTTLConfig;
@@ -56,13 +62,17 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
   // Reused for reading previous record during partial upsert
   private final GenericRow _reuse = new GenericRow();
+  private long _lastExpiredTimeMS;
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
       @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
-      boolean enableSnapshot, ServerMetrics serverMetrics) {
+      boolean enableSnapshot, File tableIndexDir, ServerMetrics serverMetrics) {
     super(tableNameWithType, partitionId, primaryKeyColumns, comparisonColumns, hashFunction, partialUpsertHandler,
-        upsertTTLConfig, enableSnapshot, serverMetrics);
+        upsertTTLConfig, enableSnapshot, tableIndexDir, serverMetrics);
+    if (upsertTTLConfig != null) {
+      _lastExpiredTimeMS = loadWatermark();
+    }
   }
 
   @Override
@@ -83,6 +93,13 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
             if (currentRecordLocation != null) {
+              // Skip the record that has a comparisonValue timestamp earlier than the TTL watermark.
+              if (_upsertTTLConfig != null) {
+                if (currentRecordLocation._comparisonValue.compareTo(_lastExpiredTimeMS) < 0) {
+                  return currentRecordLocation;
+                }
+              }
+
               // Existing primary key
               IndexSegment currentSegment = currentRecordLocation.getSegment();
               int comparisonResult =
@@ -190,14 +207,20 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
    * After replaceSegment, we iterate over recordInfoIterator to find validDocIds that are expired (out-of-TTL).
    * Primarykey expired when the comparison time value of the record is less or equal to (segmentEndTime - TTL).
    *
-   * @param expiredTimestamp segmentEndTime - TTLTime (converted ttl time values in millis time unit)
+   * @param watermark segmentEndTime - TTLTime (converted ttl time values in millis time unit)
    * @return void
    */
   @Override
-  public void doRemoveExpiredPrimaryKeys(Comparable expiredTimestamp) {
+  public void doRemoveExpiredPrimaryKeys(long watermark) {
+    if (watermark > _lastExpiredTimeMS) {
+      _lastExpiredTimeMS = watermark;
+    }
+    if (_lastExpiredTimeMS > loadWatermark()) {
+      persistWatermark(_lastExpiredTimeMS);
+    }
     _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
       assert recordLocation.getComparisonValue() != null;
-      if (recordLocation.getComparisonValue().compareTo(expiredTimestamp) < 0) {
+      if (recordLocation.getComparisonValue().compareTo(watermark) < 0) {
         _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
       }
     });
@@ -264,6 +287,47 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       // New primary key
       return record;
     }
+  }
+
+  protected long loadWatermark() {
+    File watermarkFile = getWatermarkFile();
+    if (watermarkFile.exists()) {
+      try {
+        byte[] bytes = FileUtils.readFileToByteArray(watermarkFile);
+        long watermark = ByteBuffer.wrap(bytes).getLong();
+        _logger.info("Loaded watermark {} from file for table: {} partition_id: {}", watermark, _tableNameWithType,
+            _partitionId);
+        return watermark;
+      } catch (Exception e) {
+        _logger.warn("Caught exception while deleting watermark file: {}, skipping",
+            watermarkFile);
+      }
+    }
+    return Long.MIN_VALUE;
+  }
+
+  protected void persistWatermark(long watermark) {
+    File watermarkFile = getWatermarkFile();
+    try {
+      if (watermarkFile.exists()) {
+        if (!FileUtils.deleteQuietly(watermarkFile)) {
+          _logger.warn("Cannot delete watermark file: {}, skipping", watermarkFile);
+          return;
+        }
+      }
+      try (DataOutputStream dataOutputStream = new DataOutputStream(new FileOutputStream(watermarkFile))) {
+        dataOutputStream.writeLong(_lastExpiredTimeMS);
+      }
+      _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", _lastExpiredTimeMS,
+          _tableNameWithType, _partitionId);
+    } catch (Exception e) {
+      _logger.warn("Caught exception while deleting watermark file: {}, skipping",
+          watermarkFile);
+    }
+  }
+
+  private File getWatermarkFile() {
+    return new File(_tableIndexDir, _tableNameWithType + V1Constants.TTL_WATERMARK_TABLE_PARTITION + _partitionId);
   }
 
   @VisibleForTesting
