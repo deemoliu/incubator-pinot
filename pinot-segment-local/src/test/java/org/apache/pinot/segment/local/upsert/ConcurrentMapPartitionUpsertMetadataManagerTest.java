@@ -49,7 +49,6 @@ import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.BytesUtils;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
-import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -470,17 +469,15 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
   }
 
   public void verifyPersistAndLoadWatermark() {
-    File tableDir = new File(INDEX_DIR, REALTIME_TABLE_NAME);
     UpsertTTLConfig ttlConfig = new UpsertTTLConfig(TimeUnit.MILLISECONDS, 10);
     ConcurrentMapPartitionUpsertMetadataManager upsertMetadataManager =
         new ConcurrentMapPartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"),
-            Collections.singletonList("timeCol"), HashFunction.NONE, null, ttlConfig, true, tableDir,
+            Collections.singletonList("timeCol"), HashFunction.NONE, null, ttlConfig, true, INDEX_DIR,
             mock(ServerMetrics.class));
 
     long currentTimeMs = System.currentTimeMillis();
     upsertMetadataManager.persistWatermark(currentTimeMs);
-
-    assertTrue(new File(tableDir, REALTIME_TABLE_NAME + V1Constants.TTL_WATERMARK_TABLE_PARTITION + 0).exists());
+    assertTrue(new File(INDEX_DIR, REALTIME_TABLE_NAME + V1Constants.TTL_WATERMARK_TABLE_PARTITION + 0).exists());
 
     long watermark = upsertMetadataManager.loadWatermark();
     assertEquals(watermark, currentTimeMs);
@@ -532,10 +529,5 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     public int hashCode() {
       return _value;
     }
-  }
-
-  @AfterMethod
-  public void tearDown() {
-    FileUtils.deleteQuietly(INDEX_DIR);
   }
 }
