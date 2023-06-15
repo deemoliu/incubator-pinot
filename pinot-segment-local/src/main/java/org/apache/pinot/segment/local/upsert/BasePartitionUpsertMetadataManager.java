@@ -20,6 +20,7 @@ package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -60,6 +61,7 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
   protected final PartialUpsertHandler _partialUpsertHandler;
   protected final UpsertTTLConfig _upsertTTLConfig;
   protected final boolean _enableSnapshot;
+  protected final File _tableIndexDir;
   protected final ServerMetrics _serverMetrics;
   protected final Logger _logger;
 
@@ -76,7 +78,7 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
   protected BasePartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
       @Nullable PartialUpsertHandler partialUpsertHandler, @Nullable UpsertTTLConfig upsertTTLConfig,
-      boolean enableSnapshot, ServerMetrics serverMetrics) {
+      boolean enableSnapshot, File tableIndexDir, ServerMetrics serverMetrics) {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
@@ -85,6 +87,7 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
     _partialUpsertHandler = partialUpsertHandler;
     _upsertTTLConfig = upsertTTLConfig;
     _enableSnapshot = enableSnapshot;
+    _tableIndexDir = tableIndexDir;
     _serverMetrics = serverMetrics;
     _logger = LoggerFactory.getLogger(tableNameWithType + "-" + partitionId + "-" + getClass().getSimpleName());
   }
@@ -403,13 +406,13 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
    * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
    */
   @Override
-  public void removeExpiredPrimaryKeys(Comparable timestamp) {
+  public void removeExpiredPrimaryKeys(Comparable watermark) {
     if (_upsertTTLConfig.getTtlInMs() > 0) {
-      doRemoveExpiredPrimaryKeys(timestamp);
+      doRemoveExpiredPrimaryKeys((Long) watermark);
     }
   }
 
-  protected abstract void doRemoveExpiredPrimaryKeys(Comparable timestamp);
+  protected abstract void doRemoveExpiredPrimaryKeys(long timestamp);
 
   @Override
   public void stop() {

@@ -116,10 +116,12 @@ public class ImmutableSegmentImplUpsertSnapshotTest {
     Mockito.when(_segmentMetadata.getIndexDir()).thenReturn(INDEX_DIR);
     _immutableSegmentImpl = new ImmutableSegmentImpl(_segmentDirectory, _segmentMetadata, new HashMap<>(), null);
 
+    File tableIndexDir = Mockito.mock(File.class);
     ServerMetrics serverMetrics = Mockito.mock(ServerMetrics.class);
     _partitionUpsertMetadataManager =
         new ConcurrentMapPartitionUpsertMetadataManager("testTable_REALTIME", 0, Collections.singletonList("column6"),
-            Collections.singletonList("daysSinceEpoch"), HashFunction.NONE, null, null, true, serverMetrics);
+            Collections.singletonList("daysSinceEpoch"), HashFunction.NONE, null, null, true, tableIndexDir,
+            serverMetrics);
 
     _immutableSegmentImpl.enableUpsert(_partitionUpsertMetadataManager, new ThreadSafeMutableRoaringBitmap());
   }

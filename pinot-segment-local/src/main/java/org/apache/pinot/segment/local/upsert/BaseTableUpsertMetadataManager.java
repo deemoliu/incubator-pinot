@@ -19,6 +19,7 @@
 package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.base.Preconditions;
+import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,7 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
   protected PartialUpsertHandler _partialUpsertHandler;
   protected UpsertTTLConfig _upsertTTLConfig;
   protected boolean _enableSnapshot;
+  protected File _tableIndexDir;
   protected ServerMetrics _serverMetrics;
 
   @Override
@@ -77,6 +79,7 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
       _upsertTTLConfig = upsertConfig.getUpsertTTLConfig();
     }
     _enableSnapshot = upsertConfig.isEnableSnapshot();
+    _tableIndexDir = tableDataManager.getTableDataDir();
 
     _serverMetrics = serverMetrics;
   }
