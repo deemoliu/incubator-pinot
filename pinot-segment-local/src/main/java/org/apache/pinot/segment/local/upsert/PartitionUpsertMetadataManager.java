@@ -87,7 +87,7 @@ public interface PartitionUpsertMetadataManager extends Closeable {
   /**
    * Remove from the primary key index when the PK are expired if TTL is enabled.
    */
-  void removeExpiredPrimaryKeys(Comparable watermark);
+  void removeExpiredPrimaryKeys(Comparable largestSeenComparisonValueMs);
 
   /**
    * Takes snapshot for all the tracked immutable segments when snapshot is enabled. This method should be invoked

@@ -31,7 +31,7 @@ import javax.annotation.Nullable;
  * Pinot upsert keeps track of all primary keys in heap, it's costly and also affects performance when table is large.
  *
  * If primary keys in the table have lifecycle, they won't get updated after a certain period time, then we can use the
- * following configuration to enable upsert ttl feature. Pinot will only keeps track of alive primary keys in heap.
+ * following configuration to enable upsert ttl feature. Pinot will only keeps track of primary keys within ttl window.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UpsertTTLConfig {

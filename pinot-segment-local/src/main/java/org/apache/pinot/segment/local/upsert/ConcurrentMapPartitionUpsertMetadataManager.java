@@ -64,7 +64,8 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
   // Reused for reading previous record during partial upsert
   private final GenericRow _reuse = new GenericRow();
-  private long _lastExpiredTimeMS;
+  // Used to maintain the largestSeenComparisonValue to avoid handling out-of-ttl segments/records.
+  private long _largestSeenComparisonValueMs;
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
@@ -73,7 +74,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     super(tableNameWithType, partitionId, primaryKeyColumns, comparisonColumns, hashFunction, partialUpsertHandler,
         upsertTTLConfig, enableSnapshot, tableIndexDir, serverMetrics);
     if (upsertTTLConfig != null) {
-      _lastExpiredTimeMS = loadWatermark();
+      _largestSeenComparisonValueMs = loadWatermark() + upsertTTLConfig.getTtlInMs();
     }
   }
 
@@ -91,7 +92,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     if (_upsertTTLConfig != null) {
       TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
       long endTime = segment.getSegmentMetadata().getEndTime();
-      if (timeUnit.toMillis(endTime) < _lastExpiredTimeMS) {
+      if (timeUnit.toMillis(endTime) < _largestSeenComparisonValueMs - _upsertTTLConfig.getTtlInMs()) {
         return;
       }
     }
@@ -102,10 +103,17 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       RecordInfo recordInfo = recordInfoIterator.next();
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
+            // Update the largestSeenComparisonValueMs
+            if (_upsertTTLConfig != null) {
+              if (recordInfo.getComparisonValue().compareTo(_largestSeenComparisonValueMs) > 0) {
+                _largestSeenComparisonValueMs = (long) recordInfo.getComparisonValue();
+              }
+            }
             if (currentRecordLocation != null) {
               // Skip the records that has a comparisonValue timestamp earlier than the TTL watermark.
               if (_upsertTTLConfig != null) {
-                if (currentRecordLocation._comparisonValue.compareTo(_lastExpiredTimeMS) < 0) {
+                long expiredTime = _largestSeenComparisonValueMs - _upsertTTLConfig.getTtlInMs();
+                if (currentRecordLocation._comparisonValue.compareTo(expiredTime) < 0) {
                   return currentRecordLocation;
                 }
               }
@@ -214,23 +222,20 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
    * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
    * This function will be called before new consuming segment start to consume.
    *
-   * @param watermark The watermark is the time used to clean up the metadata in the previous round
+   * @param largestSeenComparisonValueMs largest seen timestamp in millisecond timeunit.
    * @return void
    */
   @Override
-  public void doRemoveExpiredPrimaryKeys(long watermark) {
-    if (watermark > _lastExpiredTimeMS) {
-      _lastExpiredTimeMS = watermark;
-    }
-    if (_lastExpiredTimeMS > loadWatermark()) {
-      persistWatermark(_lastExpiredTimeMS);
-    }
+  public void doRemoveExpiredPrimaryKeys(long largestSeenComparisonValueMs) {
+    // The watermark is the timestamp in millisecond timeunit used to clean up the metadata in the previous round.
+    long watermark = largestSeenComparisonValueMs - _upsertTTLConfig.getTtlInMs();
     _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
       assert recordLocation.getComparisonValue() != null;
       if (recordLocation.getComparisonValue().compareTo(watermark) < 0) {
         _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
       }
     });
+    persistWatermark(watermark);
   }
 
   @Override
@@ -238,6 +243,13 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     ThreadSafeMutableRoaringBitmap validDocIds = Objects.requireNonNull(segment.getValidDocIds());
     _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
         (primaryKey, currentRecordLocation) -> {
+          // Update the largestSeenComparisonValueMs
+          if (_upsertTTLConfig != null) {
+            if (recordInfo.getComparisonValue().compareTo(_largestSeenComparisonValueMs) > 0) {
+              _largestSeenComparisonValueMs = (long) recordInfo.getComparisonValue();
+            }
+          }
+
           if (currentRecordLocation != null) {
             // Existing primary key
 
@@ -306,7 +318,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
             _partitionId);
         return watermark;
       } catch (Exception e) {
-        _logger.warn("Caught exception while deleting watermark file: {}, skipping",
+        _logger.warn("Caught exception while loading watermark file: {}, skipping",
             watermarkFile);
       }
     }
@@ -325,10 +337,10 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       try (OutputStream outputStream = new FileOutputStream(watermarkFile, false)) {
         outputStream.write(Longs.toByteArray(watermark));
       }
-      _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", _lastExpiredTimeMS,
+      _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", watermark,
           _tableNameWithType, _partitionId);
     } catch (Exception e) {
-      _logger.warn("Caught exception while deleting watermark file: {}, skipping",
+      _logger.warn("Caught exception while persisting watermark file: {}, skipping",
           watermarkFile);
     }
   }

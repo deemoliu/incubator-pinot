@@ -451,7 +451,7 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     checkRecordLocationForTTL(recordLocationMap, 2, segment1, 2, 120, HashFunction.NONE);
     checkRecordLocationForTTL(recordLocationMap, 3, segment1, 3, 80, HashFunction.NONE);
 
-    upsertMetadataManager.removeExpiredPrimaryKeys(new Long(90));
+    upsertMetadataManager.removeExpiredPrimaryKeys(new Long(100));
     assertEquals(recordLocationMap.size(), 3);
     checkRecordLocationForTTL(recordLocationMap, 0, segment1, 0, 100, HashFunction.NONE);
     checkRecordLocationForTTL(recordLocationMap, 1, segment1, 1, 100, HashFunction.NONE);
