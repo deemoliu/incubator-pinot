@@ -64,7 +64,8 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
   // Reused for reading previous record during partial upsert
   private final GenericRow _reuse = new GenericRow();
-  private long _lastExpiredTimeMS;
+  private Comparable _lastComparisonValueMS;
+  private long _watermark;
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
@@ -73,7 +74,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     super(tableNameWithType, partitionId, primaryKeyColumns, comparisonColumns, hashFunction, partialUpsertHandler,
         upsertTTLConfig, enableSnapshot, tableIndexDir, serverMetrics);
     if (upsertTTLConfig != null) {
-      _lastExpiredTimeMS = loadWatermark();
+      _lastComparisonValueMS = loadWatermark() + upsertTTLConfig.getTtlInMs();
     }
   }
 
@@ -89,9 +90,10 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     String segmentName = segment.getSegmentName();
     // Skip the segments that has a segment endTime earlier than the TTL watermark.
     if (_upsertTTLConfig != null) {
+      _watermark = loadWatermark();
       TimeUnit timeUnit = segment.getSegmentMetadata().getTimeUnit();
       long endTime = segment.getSegmentMetadata().getEndTime();
-      if (timeUnit.toMillis(endTime) < _lastExpiredTimeMS) {
+      if (timeUnit.toMillis(endTime) < _watermark) {
         return;
       }
     }
@@ -102,10 +104,17 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       RecordInfo recordInfo = recordInfoIterator.next();
       _primaryKeyToRecordLocationMap.compute(HashUtils.hashPrimaryKey(recordInfo.getPrimaryKey(), _hashFunction),
           (primaryKey, currentRecordLocation) -> {
+            if (_upsertTTLConfig != null) {
+              // update _lastComparisonValue if we seen a larger timestamp
+              if (recordInfo.getComparisonValue().compareTo(_lastComparisonValueMS) > 0) {
+                _lastComparisonValueMS = recordInfo.getComparisonValue();
+              }
+            }
+
             if (currentRecordLocation != null) {
               // Skip the records that has a comparisonValue timestamp earlier than the TTL watermark.
               if (_upsertTTLConfig != null) {
-                if (currentRecordLocation._comparisonValue.compareTo(_lastExpiredTimeMS) < 0) {
+                if (currentRecordLocation._comparisonValue.compareTo(watermark) < 0) {
                   return currentRecordLocation;
                 }
               }
@@ -213,24 +222,23 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   /**
    * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
    * This function will be called before new consuming segment start to consume.
+   * Persist the watermark (time used to clean up the metadata in the previous round) after remove Pks.
    *
-   * @param watermark The watermark is the time used to clean up the metadata in the previous round
+   * @param
    * @return void
    */
   @Override
-  public void doRemoveExpiredPrimaryKeys(long watermark) {
-    if (watermark > _lastExpiredTimeMS) {
-      _lastExpiredTimeMS = watermark;
-    }
-    if (_lastExpiredTimeMS > loadWatermark()) {
-      persistWatermark(_lastExpiredTimeMS);
-    }
+  public void doRemoveExpiredPrimaryKeys() {
+    long watermark = (long) _lastComparisonValueMS - _upsertTTLConfig.getTtlInMs();
     _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
       assert recordLocation.getComparisonValue() != null;
       if (recordLocation.getComparisonValue().compareTo(watermark) < 0) {
         _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
       }
     });
+    if (watermark > loadWatermark()) {
+      persistWatermark(watermark);
+    }
   }
 
   @Override
@@ -324,7 +332,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
       try (OutputStream outputStream = new FileOutputStream(watermarkFile, false)) {
         outputStream.write(Longs.toByteArray(watermark));
       }
-      _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", _lastExpiredTimeMS,
+      _logger.info("Persisted watermark {} to file for table: {} partition_id: {}", watermark,
           _tableNameWithType, _partitionId);
     } catch (Exception e) {
       _logger.warn("Caught exception while deleting watermark file: {}, skipping",

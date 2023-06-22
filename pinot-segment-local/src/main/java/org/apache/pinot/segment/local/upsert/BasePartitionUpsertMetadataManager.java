@@ -406,13 +406,13 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
    * When TTL is enabled for upsert, this function is used to remove expired keys from the primary key indexes.
    */
   @Override
-  public void removeExpiredPrimaryKeys(Comparable watermark) {
+  public void removeExpiredPrimaryKeys() {
     if (_upsertTTLConfig.getTtlInMs() > 0) {
-      doRemoveExpiredPrimaryKeys((Long) watermark);
+      doRemoveExpiredPrimaryKeys();
     }
   }
 
-  protected abstract void doRemoveExpiredPrimaryKeys(long timestamp);
+  protected abstract void doRemoveExpiredPrimaryKeys();
 
   @Override
   public void stop() {
