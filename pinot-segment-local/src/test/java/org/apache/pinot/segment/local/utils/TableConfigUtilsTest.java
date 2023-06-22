@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.pinot.common.tier.TierFactory;
 import org.apache.pinot.segment.spi.AggregationFunctionType;
 import org.apache.pinot.segment.spi.index.startree.AggregationFunctionColumnPair;
@@ -41,6 +42,7 @@ import org.apache.pinot.spi.config.table.TableTaskConfig;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.config.table.TierConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
+import org.apache.pinot.spi.config.table.UpsertTTLConfig;
 import org.apache.pinot.spi.config.table.assignment.InstanceAssignmentConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.config.table.assignment.InstanceReplicaGroupPartitionConfig;
@@ -1748,6 +1750,55 @@ public class TableConfigUtilsTest {
       TableConfigUtils.validateInstancePartitionsTypeMapConfig(invalidTableConfig);
       Assert.fail("Validation should have failed since both instancePartitionsMap and config are set");
     } catch (IllegalStateException ignored) {
+    }
+  }
+
+  @Test
+  public void testValidateTTLConfigForUpsertConfig() {
+    // Default comparison column (timestamp)
+    Schema schema =
+        new Schema.SchemaBuilder().setSchemaName(TABLE_NAME).addSingleValueDimension("myCol", FieldSpec.DataType.STRING)
+            .addDateTime(TIME_COLUMN, FieldSpec.DataType.LONG, "1:MILLISECONDS:EPOCH", "1:MILLISECONDS")
+            .setPrimaryKeyColumns(Lists.newArrayList("myCol")).build();
+    UpsertConfig upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL);
+    upsertConfig.setUpsertTTLConfig(new UpsertTTLConfig(TimeUnit.HOURS, 1));
+
+    TableConfig tableConfigWithoutComparisonColumn = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
+        .setTimeColumnName(TIME_COLUMN).setUpsertConfig(upsertConfig).build();
+
+    // Invalid comparison columns
+    TableConfigUtils.validateTTLConfigForUpsertConfig(tableConfigWithoutComparisonColumn, schema);
+    upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL);
+    upsertConfig.setComparisonColumns(Collections.singletonList("myCol"));
+    upsertConfig.setUpsertTTLConfig(new UpsertTTLConfig(TimeUnit.HOURS, 1));
+    TableConfig tableConfigWithInvalidComparisonColumn = new TableConfigBuilder(TableType.REALTIME)
+        .setTableName(TABLE_NAME).setTimeColumnName(TIME_COLUMN)
+        .setUpsertConfig(upsertConfig).build();
+
+    try {
+      TableConfigUtils.validateTTLConfigForUpsertConfig(tableConfigWithInvalidComparisonColumn, schema);
+      Assert.fail();
+    } catch (IllegalStateException e) {
+      Assert.assertTrue(e.getMessage().contains("The column myCol: STRING is not a numeric values"));
+    }
+
+    // Invalid config with both SnapshotEnabled and TTLConfig
+    schema =
+        new Schema.SchemaBuilder().setSchemaName(TABLE_NAME).addSingleValueDimension("myCol", FieldSpec.DataType.STRING)
+            .addDateTime(TIME_COLUMN, FieldSpec.DataType.LONG, "1:MILLISECONDS:EPOCH", "1:MILLISECONDS")
+            .setPrimaryKeyColumns(Lists.newArrayList("myCol")).build();
+    upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL);
+    upsertConfig.setUpsertTTLConfig(new UpsertTTLConfig(TimeUnit.HOURS, 1));
+    upsertConfig.setEnableSnapshot(false);
+
+    TableConfig tableConfigWithBothSnapshotEnabledAndTTLConfig = new TableConfigBuilder(TableType.REALTIME)
+        .setTableName(TABLE_NAME).setTimeColumnName(TIME_COLUMN).setUpsertConfig(upsertConfig).build();
+
+    try {
+      TableConfigUtils.validateTTLConfigForUpsertConfig(tableConfigWithBothSnapshotEnabledAndTTLConfig, schema);
+      Assert.fail();
+    } catch (IllegalStateException e) {
+      Assert.assertTrue(e.getMessage().contains("Snapshot has to be enabled for TTL feature."));
     }
   }
 
