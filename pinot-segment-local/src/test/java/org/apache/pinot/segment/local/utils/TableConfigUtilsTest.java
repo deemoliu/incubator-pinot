@@ -1762,6 +1762,7 @@ public class TableConfigUtilsTest {
             .setPrimaryKeyColumns(Lists.newArrayList("myCol")).build();
     UpsertConfig upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL);
     upsertConfig.setUpsertTTLConfig(new UpsertTTLConfig(TimeUnit.HOURS, 1));
+    upsertConfig.setEnableSnapshot(true);
 
     TableConfig tableConfigWithoutComparisonColumn = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
         .setTimeColumnName(TIME_COLUMN).setUpsertConfig(upsertConfig).build();
@@ -1770,6 +1771,7 @@ public class TableConfigUtilsTest {
     TableConfigUtils.validateTTLConfigForUpsertConfig(tableConfigWithoutComparisonColumn, schema);
     upsertConfig = new UpsertConfig(UpsertConfig.Mode.FULL);
     upsertConfig.setComparisonColumns(Collections.singletonList("myCol"));
+    upsertConfig.setEnableSnapshot(true);
     upsertConfig.setUpsertTTLConfig(new UpsertTTLConfig(TimeUnit.HOURS, 1));
     TableConfig tableConfigWithInvalidComparisonColumn = new TableConfigBuilder(TableType.REALTIME)
         .setTableName(TABLE_NAME).setTimeColumnName(TIME_COLUMN)
