@@ -30,7 +30,6 @@ import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertTrue;
 
 
 public class PartialUpsertHandlerTest {
@@ -47,46 +46,23 @@ public class PartialUpsertHandlerTest {
         new PartialUpsertHandler(schema, partialUpsertStrategies, UpsertConfig.Strategy.OVERWRITE,
             Collections.singletonList("hoursSinceEpoch"));
 
-    // both records are null.
-    GenericRow previousRecord = new GenericRow();
-    GenericRow incomingRecord = new GenericRow();
-
-    previousRecord.putDefaultNullValue("field1", 1);
-    incomingRecord.putDefaultNullValue("field1", 2);
-    GenericRow newRecord = handler.merge(previousRecord, incomingRecord);
-    assertTrue(newRecord.isNullValue("field1"));
-    assertEquals(newRecord.getValue("field1"), 2);
-
-    // previousRecord is null default value, while newRecord is not.
-    previousRecord.clear();
-    incomingRecord.clear();
-    previousRecord.putDefaultNullValue("field1", 1);
-    incomingRecord.putValue("field1", 2);
-    newRecord = handler.merge(previousRecord, incomingRecord);
-    assertFalse(newRecord.isNullValue("field1"));
-    assertEquals(newRecord.getValue("field1"), 2);
-
-    // newRecord is default null value, while previousRecord is not.
+    // newRecord is default null value, while previousRecord is not: {"field1":1, "field2": 2}
     // field1 should not be incremented since the newRecord is null.
     // special case: field2 should be merged based on default partial upsert strategy.
-    previousRecord.clear();
-    incomingRecord.clear();
-    previousRecord.putValue("field1", 1);
-    previousRecord.putValue("field2", 2);
+    GenericRow incomingRecord = new GenericRow();
     incomingRecord.putDefaultNullValue("field1", 2);
     incomingRecord.putDefaultNullValue("field2", 0);
-    newRecord = handler.merge(previousRecord, incomingRecord);
+    GenericRow newRecord = handler.merge("field1", 1, incomingRecord);
+    newRecord = handler.merge("field2", 2, newRecord);
     assertFalse(newRecord.isNullValue("field1"));
     assertEquals(newRecord.getValue("field1"), 1);
     assertFalse(newRecord.isNullValue("field2"));
     assertEquals(newRecord.getValue("field2"), 2);
 
-    // neither of records is null.
-    previousRecord.clear();
+    // neither of records is null. previousRecord: {"field1":1}, newRecord: {"field1": 2}
     incomingRecord.clear();
-    previousRecord.putValue("field1", 1);
     incomingRecord.putValue("field1", 2);
-    newRecord = handler.merge(previousRecord, incomingRecord);
+    newRecord = handler.merge("field1", 1, incomingRecord);
     assertFalse(newRecord.isNullValue("field1"));
     assertEquals(newRecord.getValue("field1"), 3);
   }
@@ -103,39 +79,23 @@ public class PartialUpsertHandlerTest {
         new PartialUpsertHandler(schema, partialUpsertStrategies, UpsertConfig.Strategy.OVERWRITE,
             Collections.singletonList("hoursSinceEpoch"));
 
-    // previousRecord is null default value, while newRecord is not.
-    GenericRow previousRecord = new GenericRow();
-    GenericRow incomingRecord = new GenericRow();
-    previousRecord.putDefaultNullValue("field1", 1);
-    previousRecord.putDefaultNullValue("field2", 2);
-    incomingRecord.putValue("field1", 2);
-    incomingRecord.putValue("field2", 1);
-    GenericRow newRecord = handler.merge(previousRecord, incomingRecord);
-    assertFalse(newRecord.isNullValue("field1"));
-    assertEquals(newRecord.getValue("field1"), 2);
-    assertEquals(newRecord.getValue("field2"), 1);
-
-    // newRecord is default null value, while previousRecord is not.
+    // newRecord is default null value {"field1":1, "field2":0}, while previousRecord is not: {"field1":8, "field2":8}.
     // field1 should not be incremented since the newRecord is null.
     // field2 should not be overrided by null value since we have default partial upsert strategy.
-    previousRecord.clear();
-    incomingRecord.clear();
-    previousRecord.putValue("field1", 8);
-    previousRecord.putValue("field2", 8);
+    GenericRow incomingRecord = new GenericRow();
     incomingRecord.putDefaultNullValue("field1", 1);
     incomingRecord.putDefaultNullValue("field2", 0);
-    newRecord = handler.merge(previousRecord, incomingRecord);
+    GenericRow newRecord = handler.merge("field1", 8, incomingRecord);
+    newRecord = handler.merge("field2", 8, newRecord);
     assertEquals(newRecord.getValue("field1"), 8);
     assertEquals(newRecord.getValue("field2"), 8);
 
-    // neither of records is null.
-    previousRecord.clear();
+    // neither of records is null. PreviousRecord: {"field1":1, "field2":100}, newRecord: {"field1":2, "field2":1000}.
     incomingRecord.clear();
-    previousRecord.putValue("field1", 1);
-    previousRecord.putValue("field2", 100);
     incomingRecord.putValue("field1", 2);
     incomingRecord.putValue("field2", 1000);
-    newRecord = handler.merge(previousRecord, incomingRecord);
+    newRecord = handler.merge("field1", 1, incomingRecord);
+    newRecord = handler.merge("field2", 2, newRecord);
     assertEquals(newRecord.getValue("field1"), 3);
     assertEquals(newRecord.getValue("field2"), 1000);
   }

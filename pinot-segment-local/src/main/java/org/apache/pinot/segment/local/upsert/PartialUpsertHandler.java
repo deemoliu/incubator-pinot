@@ -85,4 +85,31 @@ public class PartialUpsertHandler {
     }
     return newRecord;
   }
+
+  protected PartialUpsertMerger getMergerForColumn(String column) {
+    return _column2Mergers.getOrDefault(column, _defaultPartialUpsertMerger);
+  }
+
+  public GenericRow merge(String column, Object previousValue, GenericRow newRecord) {
+    if (!_primaryKeyColumns.contains(column)) {
+      if (newRecord.isNullValue(column)) {
+        // Note that we intentionally want to overwrite any previous _comparisonColumn value in the case of using
+        // multiple comparison columns. We never apply a merge function to it, rather we just take any/all non-null
+        // comparison column values from the previous record, and the sole non-null comparison column value from
+        // the new record.
+        newRecord.putValue(column, previousValue);
+        if (!_comparisonColumns.contains(column)) {
+          // Despite wanting to overwrite the values to comparison columns from prior records, we want to
+          // preserve for _this_ record which comparison column was non-null. Doing so will allow us to
+          // re-evaluate the same comparisons when reading a segment and during steady-state stream ingestion
+          newRecord.removeNullValueField(column);
+        }
+      } else if (!_comparisonColumns.contains(column)) {
+        PartialUpsertMerger merger = _column2Mergers.getOrDefault(column, _defaultPartialUpsertMerger);
+        newRecord.putValue(column,
+            merger.merge(previousValue, newRecord.getValue(column)));
+      }
+    }
+    return newRecord;
+  }
 }
