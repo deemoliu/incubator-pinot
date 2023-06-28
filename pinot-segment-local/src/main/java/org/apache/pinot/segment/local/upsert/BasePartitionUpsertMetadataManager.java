@@ -485,6 +485,9 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
    */
   @Override
   public void removeExpiredPrimaryKeys(Comparable largestSeenComparisonValueMs) {
+    if (_upsertTTLConfig == null) {
+      return;
+    }
     if (_stopped) {
       _logger.debug("Skip removing expired primary keys because metadata manager is already stopped");
       return;

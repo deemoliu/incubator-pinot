@@ -65,7 +65,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   // Reused for reading previous record during partial upsert
   private final GenericRow _reuse = new GenericRow();
   // Used to maintain the largestSeenComparisonValue to avoid handling out-of-ttl segments/records.
-  private long _largestSeenComparisonValueMs;
+  protected long _largestSeenComparisonValueMs;
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
       List<String> primaryKeyColumns, List<String> comparisonColumns, HashFunction hashFunction,
@@ -228,7 +228,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   @Override
   public void doRemoveExpiredPrimaryKeys(long largestSeenComparisonValueMs) {
     // The watermark is the timestamp in millisecond timeunit used to clean up the metadata in the previous round.
-    long watermark = largestSeenComparisonValueMs - _upsertTTLConfig.getTtlInMs();
+    long watermark = _largestSeenComparisonValueMs - _upsertTTLConfig.getTtlInMs();
     _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
       assert recordLocation.getComparisonValue() != null;
       if (recordLocation.getComparisonValue().compareTo(watermark) < 0) {

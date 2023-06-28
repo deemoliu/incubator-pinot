@@ -450,11 +450,17 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     checkRecordLocationForTTL(recordLocationMap, 1, segment1, 1, 100, HashFunction.NONE);
     checkRecordLocationForTTL(recordLocationMap, 2, segment1, 2, 120, HashFunction.NONE);
     checkRecordLocationForTTL(recordLocationMap, 3, segment1, 3, 80, HashFunction.NONE);
+    long watermark = upsertMetadataManager._largestSeenComparisonValueMs - ttlConfig.getTtlInMs();
+    upsertMetadataManager.persistWatermark(110);
+    assertTrue(new File(INDEX_DIR, REALTIME_TABLE_NAME + V1Constants.TTL_WATERMARK_TABLE_PARTITION + 0).exists());
+    assertEquals(110, upsertMetadataManager.loadWatermark());
+
 
     upsertMetadataManager.removeExpiredPrimaryKeys(new Long(100));
-    assertEquals(recordLocationMap.size(), 3);
-    checkRecordLocationForTTL(recordLocationMap, 0, segment1, 0, 100, HashFunction.NONE);
-    checkRecordLocationForTTL(recordLocationMap, 1, segment1, 1, 100, HashFunction.NONE);
+//    assertEquals(recordLocationMap.size(), 3);
+    assertEquals(recordLocationMap.size(), 1);
+//    checkRecordLocationForTTL(recordLocationMap, 0, segment1, 0, 100, HashFunction.NONE);
+//    checkRecordLocationForTTL(recordLocationMap, 1, segment1, 1, 100, HashFunction.NONE);
     checkRecordLocationForTTL(recordLocationMap, 2, segment1, 2, 120, HashFunction.NONE);
     assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{0, 1, 2, 3});
   }

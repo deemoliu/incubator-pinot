@@ -675,6 +675,10 @@ public class LLRealtimeSegmentDataManager extends RealtimeSegmentDataManager {
         // Take upsert snapshot before starting consuming events
         if (_partitionUpsertMetadataManager != null) {
           _partitionUpsertMetadataManager.takeSnapshot();
+          // call remove pks
+          if (_tableConfig.getUpsertConfig().getUpsertTTLConfig() != null) {
+
+          }
         }
 
         while (!_state.isFinal()) {
