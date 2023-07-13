@@ -287,19 +287,32 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
             if (currentQueryableDocIds == null || currentQueryableDocIds.contains(currentDocId)) {
               _reuse.clear();
               for (String column: record.getFieldToValueMap().keySet()) {
-                PinotSegmentColumnReader pinotSegmentColumnReader =
-                    new PinotSegmentColumnReader(recordLocation.getSegment(), column);
-                // If the value of the previous row is null value, skip merging. Otherwise, do merging as follows.
-                if (!pinotSegmentColumnReader.isNull(recordLocation.getDocId())) {
-                  GenericRow row = mergedRowReference.get();
-                  if (record.isNullValue(column)) {
-                    // the new value is null, we will use the previous value
+
+                if (_partialUpsertHandler.getMergerForColumn(column) instanceof OverwriteMerger) {
+                  if (!record.isNullValue(column)) {
+                    // overwrite merger, new value is not nil, no need to merge, just use the existing value
+                  } else {
+                    PinotSegmentColumnReader pinotSegmentColumnReader =
+                        new PinotSegmentColumnReader(recordLocation.getSegment(), column);
+                    // overwrite merger, new value is nil
                     Object previousValue = pinotSegmentColumnReader.getValue(recordLocation.getDocId());
-                    mergedRowReference.set(_partialUpsertHandler.merge(column, previousValue, row));
-                  } else if (!(_partialUpsertHandler.getMergerForColumn(column) instanceof OverwriteMerger)) {
-                    // non-overwrite merger
+                    record.removeNullValueField(column);
+                    record.putValue(column, previousValue);
+                  }
+                } else {
+                  PinotSegmentColumnReader pinotSegmentColumnReader =
+                      new PinotSegmentColumnReader(recordLocation.getSegment(), column);
+                  if (!pinotSegmentColumnReader.isNull(recordLocation.getDocId())) {
                     Object previousValue = pinotSegmentColumnReader.getValue(recordLocation.getDocId());
-                    mergedRowReference.set(_partialUpsertHandler.merge(column, previousValue, row));
+                    if (record.isNullValue(column)) {
+                      // the new value is null, we will use the previous value
+                      record.removeNullValueField(column);
+                      record.putValue(column, previousValue);
+                    } else {
+                      // non-overwrite merger
+                      currentSegment.getRecord(currentDocId, _reuse);
+                      _partialUpsertHandler.merge(column, previousValue, record);
+                    }
                   }
                 }
               }
