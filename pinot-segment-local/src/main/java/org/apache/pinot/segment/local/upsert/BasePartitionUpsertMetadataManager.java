@@ -338,6 +338,35 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
 
   @Override
   public void replaceSegment(ImmutableSegment segment, IndexSegment oldSegment) {
+    String segmentName = segment.getSegmentName();
+    Preconditions.checkArgument(segment instanceof ImmutableSegmentImpl,
+        "Got unsupported segment implementation: {} for segment: {}, table: {}", segment.getClass(), segmentName,
+        _tableNameWithType);
+    ImmutableSegmentImpl immutableSegment = (ImmutableSegmentImpl) segment;
+    Preconditions.checkArgument(oldSegment instanceof ImmutableSegmentImpl,
+        "Got unsupported segment implementation: {} for old segment: {}, table: {}", oldSegment.getClass(), segmentName,
+        _tableNameWithType);
+    ImmutableSegmentImpl oldImmutableSegment = (ImmutableSegmentImpl) oldSegment;
+
+    // When TTL is enabled, skip loading out-of-TTL segments with snapshots, we need to learn which docs are valid from
+    // the old segments. We can assign the invalid docs from the replaced segment to the new segment.
+    if (_largestSeenComparisonValue > 0) {
+      Preconditions.checkState(_enableSnapshot, "Upsert TTL must have snapshot enabled");
+      Preconditions.checkState(_comparisonColumns.size() == 1,
+          "Upsert TTL does not work with multiple comparison columns");
+      Number maxComparisonValue =
+          (Number) segment.getSegmentMetadata().getColumnMetadataMap().get(_comparisonColumns.get(0)).getMaxValue();
+      if (maxComparisonValue.doubleValue() < _largestSeenComparisonValue - _metadataTTL) {
+        _logger.info("Skip replacing segment: {} because it's out of TTL", segmentName);
+        // ValidDocIdsSnapshots might not be taken yet, get validDocIds from old segment directly.
+        ThreadSafeMutableRoaringBitmap validDocIds = oldImmutableSegment.getValidDocIds();
+        if (validDocIds != null) {
+          immutableSegment.enableUpsert(this, validDocIds, null);
+        }
+        return;
+      }
+    }
+
     if (!startOperation()) {
       _logger.info("Skip replacing segment: {} because metadata manager is already stopped", segment.getSegmentName());
       return;
@@ -404,11 +433,6 @@ public abstract class BasePartitionUpsertMetadataManager implements PartitionUps
     String segmentName = segment.getSegmentName();
     Lock segmentLock = SegmentLocks.getSegmentLock(_tableNameWithType, segmentName);
 
-    // Currently when TTL is enabled, we don't support skip loading out-of-TTL segment with snapshots, since we don't
-    // know which docs are valid in the new segment.
-    // TODO: when ttl is enabled, we can allow
-    //       (1) skip loading segments without any invalid docs.
-    //       (2) assign the invalid docs from the replaced segment to the new segment.
     segmentLock.lock();
     try {
       MutableRoaringBitmap validDocIdsForOldSegment =

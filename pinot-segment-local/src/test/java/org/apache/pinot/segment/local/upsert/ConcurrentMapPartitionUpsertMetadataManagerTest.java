@@ -156,6 +156,7 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     verifyAddSegmentForTTL(new Double(80));
     verifyAddSegmentForTTL(new Long(80));
     verifyAddOutOfTTLSegment();
+    verifyReloadOutOfTTLSegment();
   }
 
   private void verifyAddReplaceRemoveSegment(HashFunction hashFunction, boolean enableSnapshot)
@@ -978,6 +979,119 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     // out of ttl segment should not be added to recordLocationMap
     assertEquals(recordLocationMap.size(), 5);
   }
+
+//  private void verifyReloadOutOfTTLSegment() {
+//    String comparisonColumn = "timeCol";
+//    ConcurrentMapPartitionUpsertMetadataManager upsertMetadataManager =
+//        new ConcurrentMapPartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, Collections.singletonList("pk"),
+//            Collections.singletonList(comparisonColumn), null, null, null, false, 0, INDEX_DIR,
+//            mock(ServerMetrics.class));
+//    Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
+//    Set<IndexSegment> trackedSegments = upsertMetadataManager._trackedSegments;
+//
+//    // Add the first segment
+//    int numRecords = 6;
+//    int[] primaryKeys = new int[]{0, 1, 2, 0, 1, 0};
+//    int[] timestamps = new int[]{100, 100, 100, 80, 120, 100};
+//    ThreadSafeMutableRoaringBitmap validDocIds1 = new ThreadSafeMutableRoaringBitmap();
+//    List<PrimaryKey> primaryKeys1 = getPrimaryKeyList(numRecords, primaryKeys);
+//    ImmutableSegmentImpl segment1 = mockImmutableSegment(1, validDocIds1, null, primaryKeys1);
+//    List<RecordInfo> recordInfoList1;
+//    // get recordInfo from validDocIdSnapshot.
+//    // segment1 snapshot: 0 -> {5, 100}, 1 -> {4, 120}, 2 -> {2, 100}
+//    int[] docIds1 = new int[]{2, 4, 5};
+//    MutableRoaringBitmap validDocIdsSnapshot1 = new MutableRoaringBitmap();
+//    validDocIdsSnapshot1.add(docIds1);
+//    recordInfoList1 = getRecordInfoList(validDocIdsSnapshot1, primaryKeys, timestamps, null);
+//    upsertMetadataManager.addSegment(segment1, validDocIds1, null, recordInfoList1.iterator());
+//    trackedSegments.add(segment1);
+//    // segment1: 0 -> {5, 100}, 1 -> {4, 120}, 2 -> {2, 100}
+//    assertEquals(recordLocationMap.size(), 3);
+//    checkRecordLocation(recordLocationMap, 0, segment1, 5, 100, null);
+//    checkRecordLocation(recordLocationMap, 1, segment1, 4, 120, null);
+//    checkRecordLocation(recordLocationMap, 2, segment1, 2, 100, null);
+//    assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{2, 4, 5});
+//
+//    // Add the second segment
+//    numRecords = 5;
+//    primaryKeys = new int[]{0, 1, 2, 3, 0};
+//    timestamps = new int[]{100, 100, 120, 80, 80};
+//    ThreadSafeMutableRoaringBitmap validDocIds2 = new ThreadSafeMutableRoaringBitmap();
+//    ImmutableSegmentImpl segment2 =
+//        mockImmutableSegment(2, validDocIds2, null, getPrimaryKeyList(numRecords, primaryKeys));
+//    List<RecordInfo> recordInfoList2;
+//    // get recordInfo from validDocIdSnapshot.
+//    // segment2 snapshot: 0 -> {0, 100}, 2 -> {2, 120}, 3 -> {3, 80}
+//    // segment1 snapshot: 1 -> {4, 120}
+//    MutableRoaringBitmap validDocIdsSnapshot2 = new MutableRoaringBitmap();
+//    validDocIdsSnapshot2.add(0, 2, 3);
+//    recordInfoList2 = getRecordInfoList(validDocIdsSnapshot2, primaryKeys, timestamps, null);
+//
+//    upsertMetadataManager.addSegment(segment2, validDocIds2, null, recordInfoList2.iterator());
+//    trackedSegments.add(segment2);
+//
+//    // segment1: 1 -> {4, 120}
+//    // segment2: 0 -> {0, 100}, 2 -> {2, 120}, 3 -> {3, 80}
+//    assertEquals(recordLocationMap.size(), 4);
+//    checkRecordLocation(recordLocationMap, 0, segment2, 0, 100, null);
+//    checkRecordLocation(recordLocationMap, 1, segment1, 4, 120, null);
+//    checkRecordLocation(recordLocationMap, 2, segment2, 2, 120, null);
+//    checkRecordLocation(recordLocationMap, 3, segment2, 3, 80, null);
+//    assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//    assertEquals(validDocIds2.getMutableRoaringBitmap().toArray(), new int[]{0, 2, 3});
+//
+//    // Replace (reload) the first segment
+//    ThreadSafeMutableRoaringBitmap newValidDocIds1 = new ThreadSafeMutableRoaringBitmap();
+//    ImmutableSegmentImpl newSegment1 = mockImmutableSegment(1, newValidDocIds1, null, primaryKeys1);
+//    upsertMetadataManager.replaceSegment(newSegment1, newValidDocIds1, null, recordInfoList1.iterator(), segment1);
+//    trackedSegments.add(newSegment1);
+//    trackedSegments.remove(segment1);
+//    // original segment1: 1 -> {4, 120} (not in the map)
+//    // segment2: 0 -> {0, 100}, 2 -> {2, 120}, 3 -> {3, 80}
+//    // new segment1: 1 -> {4, 120}
+//    assertEquals(recordLocationMap.size(), 4);
+//    checkRecordLocation(recordLocationMap, 0, segment2, 0, 100, null);
+//    checkRecordLocation(recordLocationMap, 1, newSegment1, 4, 120, null);
+//    checkRecordLocation(recordLocationMap, 2, segment2, 2, 120, null);
+//    checkRecordLocation(recordLocationMap, 3, segment2, 3, 80, null);
+//    assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//    assertEquals(validDocIds2.getMutableRoaringBitmap().toArray(), new int[]{0, 2, 3});
+//    assertEquals(newValidDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//
+//    // Remove the original segment1
+//    upsertMetadataManager.removeSegment(segment1);
+//    // segment2: 0 -> {0, 100}, 2 -> {2, 120}, 3 -> {3, 80}
+//    // new segment1: 1 -> {4, 120}
+//    assertEquals(recordLocationMap.size(), 4);
+//    checkRecordLocation(recordLocationMap, 0, segment2, 0, 100, null);
+//    checkRecordLocation(recordLocationMap, 1, newSegment1, 4, 120, null);
+//    checkRecordLocation(recordLocationMap, 2, segment2, 2, 120, null);
+//    checkRecordLocation(recordLocationMap, 3, segment2, 3, 80, null);
+//    assertEquals(validDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//    assertEquals(validDocIds2.getMutableRoaringBitmap().toArray(), new int[]{0, 2, 3});
+//    assertEquals(newValidDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//
+//    // Remove segment2
+//    upsertMetadataManager.removeSegment(segment2);
+//    // segment2: 0 -> {0, 100}, 2 -> {2, 120}, 3 -> {3, 80} (not in the map)
+//    // new segment1: 1 -> {4, 120}
+//    assertEquals(recordLocationMap.size(), 1);
+//    checkRecordLocation(recordLocationMap, 1, newSegment1, 4, 120, null);
+//    assertEquals(validDocIds2.getMutableRoaringBitmap().toArray(), new int[]{0, 2, 3});
+//    assertEquals(newValidDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//    assertEquals(trackedSegments, Collections.singleton(newSegment1));
+//
+//    // Stop the metadata manager
+//    upsertMetadataManager.stop();
+//
+//    // Remove new segment1, should be no-op
+//    upsertMetadataManager.removeSegment(newSegment1);
+//    // new segment1: 1 -> {4, 120}
+//    assertEquals(recordLocationMap.size(), 1);
+//    checkRecordLocation(recordLocationMap, 1, newSegment1, 4, 120, null);
+//    assertEquals(newValidDocIds1.getMutableRoaringBitmap().toArray(), new int[]{4});
+//    assertEquals(trackedSegments, Collections.singleton(newSegment1));
+//  }
 
   private void verifyAddSegmentForTTL(Comparable comparisonValue) {
     File tableDir = new File(INDEX_DIR, REALTIME_TABLE_NAME);
