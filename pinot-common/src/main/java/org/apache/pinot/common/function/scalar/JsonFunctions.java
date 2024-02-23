@@ -19,6 +19,7 @@
 package org.apache.pinot.common.function.scalar;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
@@ -206,6 +207,36 @@ public class JsonFunctions {
       return Double.parseDouble(jsonValue.toString());
     } catch (Exception ignore) {
       return defaultValue;
+    }
+  }
+
+  /**
+   * Extract from Json with path to Double
+   */
+  @ScalarFunction(nullableParameters = true, names = {"jsonKeys"})
+  public static String[] jsonKeys(@Nullable Object object, String[] defaultValue) {
+    String[] res = new String[]{};
+    JsonNode jsonNode = JsonUtils.objectToJsonNode(object);
+    try {
+      Map<String, Object> jsonMap = JsonUtils.jsonNodeToMap(jsonNode);
+      return jsonMap.keySet().toArray(res);
+    } catch (Exception ignore) {
+      return res;
+    }
+  }
+
+  /**
+   * Extract from Json with path to Double
+   */
+  @ScalarFunction(nullableParameters = true, names = {"jsonValues"})
+  public static String[] jsonValues(@Nullable Object object, String[] defaultValue) {
+    String[] res = new String[]{};
+    JsonNode jsonNode = JsonUtils.objectToJsonNode(object);
+    try {
+      Map<String, Object> jsonMap = JsonUtils.jsonNodeToMap(jsonNode);
+      return jsonMap.entrySet().toArray(res);
+    } catch (Exception ignore) {
+      return res;
     }
   }
 
