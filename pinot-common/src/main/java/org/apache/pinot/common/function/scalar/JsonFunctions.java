@@ -28,6 +28,8 @@ import com.jayway.jsonpath.Predicate;
 import com.jayway.jsonpath.spi.cache.CacheProvider;
 import com.jayway.jsonpath.spi.json.JacksonJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import it.unimi.dsi.fastutil.objects.ObjectLinkedOpenHashSet;
+import it.unimi.dsi.fastutil.objects.ObjectSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,87 @@ public class JsonFunctions {
   public static String toJsonMapStr(@Nullable Map map)
       throws JsonProcessingException {
     return JsonUtils.objectToString(map);
+  }
+
+  @ScalarFunction(nullableParameters = true)
+  public static Object[] jsonKeySets(@Nullable Map map)
+      throws JsonProcessingException {
+    return map.keySet().toArray(new String[0]);
+  }
+
+  @ScalarFunction(nullableParameters = true)
+  public static String[] jsonKeyValuePrefixes(@Nullable Map map, int maxlength, String splitChar)
+      throws JsonProcessingException {
+    ObjectSet<String> prefixSet = new ObjectLinkedOpenHashSet<>();
+    for (Object key: map.keySet()) {
+      Object value = map.get(key);
+      String input;
+      if (value instanceof String) {
+        input = (String) map.get(key);
+      } else {
+        input = value.toString();
+      }
+      for (int prefixLength = 1; prefixLength <= maxlength && prefixLength <= input.length(); prefixLength++) {
+        if (splitChar != null) {
+          prefixSet.add(key + splitChar + input.substring(0, prefixLength));
+        } else {
+          prefixSet.add(input.substring(0, prefixLength));
+        }
+      }
+    }
+    return prefixSet.toArray(new String[0]);
+  }
+
+  @ScalarFunction(nullableParameters = true)
+  public static String[] jsonKeyValueSuffixes(@Nullable Map map, int maxlength, String splitChar)
+      throws JsonProcessingException {
+    ObjectSet<String> suffixSet = new ObjectLinkedOpenHashSet<>();
+    for (Object key: map.keySet()) {
+      Object value = map.get(key);
+      String input;
+      if (value instanceof String) {
+        input = (String) map.get(key);
+      } else {
+        input = value.toString();
+      }
+      for (int suffixLength = 1; suffixLength <= maxlength && suffixLength <= input.length(); suffixLength++) {
+        if (splitChar != null) {
+          suffixSet.add(key + splitChar + input.substring(input.length() - suffixLength));
+        } else {
+          suffixSet.add(input.substring(input.length() - suffixLength));
+        }
+
+      }
+    }
+    return suffixSet.toArray(new String[0]);
+  }
+
+  @ScalarFunction(nullableParameters = true)
+  public static String[] jsonKeyValueNgrams(@Nullable Map map, int minGram, int maxGram, String splitChar)
+      throws JsonProcessingException {
+    ObjectSet<String> ngramSet = new ObjectLinkedOpenHashSet<>();
+    for (Object key: map.keySet()) {
+      Object value = map.get(key);
+      String input;
+      if (value instanceof String) {
+        input = (String) map.get(key);
+      } else {
+        input = value.toString();
+      }
+      for (int n = minGram; n <= maxGram && n <= input.length(); n++) {
+        if (n == 0) {
+          continue;
+        }
+        for (int i = 0; i < input.length() - n + 1; i++) {
+          if (splitChar != null) {
+            ngramSet.add(key + splitChar + input.substring(i, i + n));
+          } else {
+            ngramSet.add(input.substring(i, i + n));
+          }
+        }
+      }
+    }
+    return ngramSet.toArray(new String[0]);
   }
 
   /**

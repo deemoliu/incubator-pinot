@@ -561,6 +561,11 @@ public class StringFunctions {
     return StringUtils.splitByWholeSeparator(input, delimiter);
   }
 
+  @ScalarFunction
+  public static long splitLength(String input, String delimiter) {
+    return StringUtils.splitByWholeSeparator(input, delimiter).length;
+  }
+
   /**
    * @param input
    * @param delimiter
@@ -923,5 +928,95 @@ public class StringFunctions {
   public static boolean like(String inputStr, String likePatternStr) {
     String regexPatternStr = RegexpPatternConverterUtils.likeToRegexpLike(likePatternStr);
     return regexpLike(inputStr, regexPatternStr);
+  }
+
+
+  /**
+   * @param inputMultiValues an input string array for prefix strings generations.
+   * @param length the max length of the prefix strings for the string.
+   * @param regexChar the character for regex matching to be added to prefix strings generated. e.g. '^'
+   * @return an array of prefix strings of the string that are shorter than the specified length.
+   */
+  @ScalarFunction
+  public static String[] prefixMv(String inputMultiValues[], int length, String regexChar) {
+    ObjectSet<String> prefixSet = new ObjectLinkedOpenHashSet<>();
+    for (String input: inputMultiValues) {
+      for (int prefixLength = 1; prefixLength <= length && prefixLength <= input.length(); prefixLength++) {
+        if (regexChar != null) {
+          prefixSet.add(regexChar + input.substring(0, prefixLength));
+        } else {
+          prefixSet.add(input.substring(0, prefixLength));
+        }
+      }
+    }
+    return prefixSet.toArray(new String[0]);
+  }
+
+
+  /**
+   * @param inputMultiValues an input string for suffix strings generations.
+   * @param length the max length of the suffix strings for the string.
+   * @param regexChar the character for regex matching to be added to suffix strings generated. e.g. '$'
+   * @return an array of suffix strings of the string that are shorter than the specified length.
+   */
+  @ScalarFunction
+  public static String[] suffixMv(String inputMultiValues[], int length, String regexChar) {
+    ObjectSet<String> suffixSet = new ObjectLinkedOpenHashSet<>();
+    for (String input: inputMultiValues) {
+      for (int suffixLength = 1; suffixLength <= length && suffixLength <= input.length(); suffixLength++) {
+        if (regexChar != null) {
+          suffixSet.add(input.substring(input.length() - suffixLength) + regexChar);
+        } else {
+          suffixSet.add(input.substring(input.length() - suffixLength));
+        }
+      }
+    }
+    return suffixSet.toArray(new String[0]);
+  }
+
+
+  /**
+   * @param inputMultiValues an input string for ngram generations.
+   * @param length the max length of the ngram for the string.
+   * @return an array of ngram of the string that length are exactly matching the specified length
+   */
+  @ScalarFunction
+  public static String[] ngramMv(String[] inputMultiValues, int length) {
+    if (length == 0) {
+      return new String[0];
+    }
+    ObjectSet<String> ngramSet = new ObjectLinkedOpenHashSet<>();
+    for (String input: inputMultiValues) {
+      if (length > input.length()) {
+        continue;
+      }
+      for (int i = 0; i < input.length() - length + 1; i++) {
+        ngramSet.add(input.substring(i, i + length));
+      }
+    }
+    return ngramSet.toArray(new String[0]);
+  }
+
+
+  /**
+   * @param inputMultiValues an input string for ngram generations.
+   * @param minGram the min length of the ngram for the string.
+   * @param maxGram the max length of the ngram for the string.
+   * @return an array of ngram of the string that length are within the specified range [minGram, maxGram]
+   */
+  @ScalarFunction
+  public static String[] ngramMv(String[] inputMultiValues, int minGram, int maxGram) {
+    ObjectSet<String> ngramSet = new ObjectLinkedOpenHashSet<>();
+    for (String input: inputMultiValues) {
+      for (int n = minGram; n <= maxGram && n <= input.length(); n++) {
+        if (n == 0) {
+          continue;
+        }
+        for (int i = 0; i < input.length() - n + 1; i++) {
+          ngramSet.add(input.substring(i, i + n));
+        }
+      }
+    }
+    return ngramSet.toArray(new String[0]);
   }
 }

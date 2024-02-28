@@ -303,4 +303,19 @@ public class JsonFunctionsTest {
       }
     }
   }
+
+  @Test
+  public void testJsonKeyValueFunction()
+      throws JsonProcessingException {
+    Map jsonmap = ImmutableMap.of("sha", 123, "name", "k");
+    // @formatter:on
+    // CHECKSTYLE:ON
+    assertEquals(JsonFunctions.jsonKeyValuePrefixes(jsonmap, 3, ":"),
+        new String[]{"sha:1", "sha:12", "sha:123", "name:k"});
+    assertEquals(JsonFunctions.jsonKeyValueSuffixes(jsonmap, 3, ":"),
+        new String[]{"sha:3", "sha:23", "sha:123", "name:k"});
+    assertEquals(JsonFunctions.jsonKeyValueNgrams(jsonmap, 1, 3, ":"),
+        new String[]{"sha:1", "sha:2", "sha:3", "sha:12", "sha:23", "sha:123", "name:k"});
+    assertEquals(JsonFunctions.jsonKeySets(jsonmap), new String[]{"sha", "name"});
+  }
 }
