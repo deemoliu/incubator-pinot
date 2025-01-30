@@ -19,6 +19,7 @@
 package org.apache.pinot.plugin.inputformat.clplog;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +94,12 @@ public class CLPLogMessageDecoder implements StreamMessageDecoder<byte[]> {
   public GenericRow decode(byte[] payload, GenericRow destination) {
     try {
       JsonNode message = JsonUtils.bytesToJsonNode(payload);
+      // payload (all columns) to jsonNode
+      // parse jsonNode --> find message column jsonNode --> truncated
+      // message.get("message").asText() if exist, then truncateifExceed and put back
+      // ((ObjectNode) message).put("message", truncated value);
       Map<String, Object> from = JsonUtils.jsonNodeToMap(message);
+      // or from.get("message").put()
       _recordExtractor.extract(from, destination);
       return destination;
     } catch (Exception e) {
