@@ -246,6 +246,30 @@ public class ArrayFunctions {
     return sum;
   }
 
+  @ScalarFunction
+  public static String[] arrayPrefixes(String[] arr, int maxlength) {
+    ObjectSet<String> set = new ObjectLinkedOpenHashSet<>();
+    for (String val: arr) {
+      int arrLength = Math.min(maxlength, val.length());
+      for (int prefixIdx = 1; prefixIdx <= arrLength; prefixIdx++) {
+        set.add(val.substring(0, prefixIdx));
+      }
+    }
+    return set.toArray(new String[0]);
+  }
+
+  @ScalarFunction
+  public static String[] arraySuffixes(String[] arr, int maxlength) {
+    ObjectSet<String> set = new ObjectLinkedOpenHashSet<>();
+    for (String val: arr) {
+      int arrLength = Math.min(maxlength, val.length());
+      for (int suffixIdx = 1; suffixIdx <= arrLength; suffixIdx++) {
+        set.add(val.substring(val.length() - suffixIdx));
+      }
+    }
+    return set.toArray(new String[0]);
+  }
+
   @ScalarFunction(names = {"array", "arrayValueConstructor"}, isVarArg = true)
   public static Object arrayValueConstructor(Object... arr) {
     if (arr == null || arr.length == 0) {
