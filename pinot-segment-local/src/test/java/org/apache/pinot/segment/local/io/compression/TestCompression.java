@@ -190,6 +190,193 @@ public class TestCompression {
     }
   }
 
+  @Test
+  public void testDeltaCompression() throws IOException {
+    // Test with integers - sequence with constant deltas (arithmetic sequence)
+    int[] intValues = {10, 20, 30, 40, 50, 60, 70, 80, 90}; // constant delta of 10
+    ByteBuffer intInput = ByteBuffer.allocateDirect(intValues.length * Integer.BYTES);
+    for (int value : intValues) {
+      intInput.putInt(value);
+    }
+    intInput.flip();
+
+    // Use maxCompressedSize to properly size the compressed buffer
+    ByteBuffer intCompressed = ByteBuffer.allocateDirect(DeltaCompressor.INSTANCE.maxCompressedSize(intInput.remaining()));
+    DeltaCompressor.INSTANCE.compress(intInput.duplicate(), intCompressed);
+    intCompressed.flip();
+
+    // Use decompressedLength to properly size the output buffer
+    ByteBuffer intDecompressed = ByteBuffer.allocateDirect(DeltaDecompressor.INSTANCE.decompressedLength(intCompressed.duplicate()));
+    DeltaDecompressor.INSTANCE.decompress(intCompressed, intDecompressed);
+
+    intDecompressed.flip();
+    for (int value : intValues) {
+      assertEquals(value, intDecompressed.getInt());
+    }
+
+    // Test with longs - sequence with constant deltas (arithmetic sequence)
+    long[] longValues = {100L, 200L, 300L, 400L, 500L, 600L, 700L, 800L, 900L}; // constant delta of 100
+    ByteBuffer longInput = ByteBuffer.allocateDirect(longValues.length * Long.BYTES);
+    for (long value : longValues) {
+      longInput.putLong(value);
+    }
+    longInput.flip();
+
+    ByteBuffer longCompressed = ByteBuffer.allocateDirect(DeltaCompressor.INSTANCE.maxCompressedSize(longInput.remaining()));
+    DeltaCompressor.INSTANCE.compress(longInput.duplicate(), longCompressed);
+    longCompressed.flip();
+
+    ByteBuffer longDecompressed = ByteBuffer.allocateDirect(DeltaDecompressor.INSTANCE.decompressedLength(longCompressed.duplicate()));
+    DeltaDecompressor.INSTANCE.decompress(longCompressed, longDecompressed);
+
+    longDecompressed.flip();
+    for (long value : longValues) {
+      assertEquals(value, longDecompressed.getLong());
+    }
+
+    // Test empty input
+    ByteBuffer emptyInput = ByteBuffer.allocateDirect(0);
+    ByteBuffer emptyCompressed = ByteBuffer.allocateDirect(DeltaCompressor.INSTANCE.maxCompressedSize(0));
+    DeltaCompressor.INSTANCE.compress(emptyInput, emptyCompressed);
+    emptyCompressed.flip();
+
+    ByteBuffer emptyDecompressed = ByteBuffer.allocateDirect(DeltaDecompressor.INSTANCE.decompressedLength(emptyCompressed.duplicate()));
+    DeltaDecompressor.INSTANCE.decompress(emptyCompressed, emptyDecompressed);
+    assertEquals(0, emptyDecompressed.remaining());
+
+    // Test single value
+    ByteBuffer singleInput = ByteBuffer.allocateDirect(Integer.BYTES);
+    singleInput.putInt(42);
+    singleInput.flip();
+
+    ByteBuffer singleCompressed = ByteBuffer.allocateDirect(DeltaCompressor.INSTANCE.maxCompressedSize(singleInput.remaining()));
+    DeltaCompressor.INSTANCE.compress(singleInput.duplicate(), singleCompressed);
+    singleCompressed.flip();
+
+    ByteBuffer singleDecompressed = ByteBuffer.allocateDirect(DeltaDecompressor.INSTANCE.decompressedLength(singleCompressed.duplicate()));
+    DeltaDecompressor.INSTANCE.decompress(singleCompressed, singleDecompressed);
+
+    singleDecompressed.flip();
+    assertEquals(42, singleDecompressed.getInt());
+  }
+
+  @Test
+  public void testDeltaOfDeltaCompression() throws IOException {
+    // Test with integers - sequence with constant second derivative (quadratic sequence)
+    // Values: 10, 16, 24, 34, 46, 60, 76, 94, 114
+    // First differences: 6, 8, 10, 12, 14, 16, 18, 20
+    // Second differences (constant): 2, 2, 2, 2, 2, 2, 2
+    int[] intValues = {10, 16, 24, 34, 46, 60, 76, 94, 114};
+    ByteBuffer intInput = ByteBuffer.allocateDirect(intValues.length * Integer.BYTES);
+    for (int value : intValues) {
+      intInput.putInt(value);
+    }
+    intInput.flip();
+
+    ByteBuffer intCompressed = ByteBuffer.allocateDirect(DeltaOfDeltaCompressor.INSTANCE.maxCompressedSize(intInput.remaining()));
+    DeltaOfDeltaCompressor.INSTANCE.compress(intInput.duplicate(), intCompressed);
+    intCompressed.flip();
+
+    ByteBuffer intDecompressed = ByteBuffer.allocateDirect(DeltaOfDeltaDecompressor.INSTANCE.decompressedLength(intCompressed.duplicate()));
+    DeltaOfDeltaDecompressor.INSTANCE.decompress(intCompressed, intDecompressed);
+
+    intDecompressed.flip();
+    for (int value : intValues) {
+      assertEquals(value, intDecompressed.getInt());
+    }
+
+    // Test with longs - sequence with constant second derivative (quadratic sequence)
+    // Values: 100, 160, 240, 340, 460, 600, 760, 940, 1140
+    // First differences: 60, 80, 100, 120, 140, 160, 180, 200
+    // Second differences (constant): 20, 20, 20, 20, 20, 20, 20
+    long[] longValues = {100L, 160L, 240L, 340L, 460L, 600L, 760L, 940L, 1140L};
+    ByteBuffer longInput = ByteBuffer.allocateDirect(longValues.length * Long.BYTES);
+    for (long value : longValues) {
+      longInput.putLong(value);
+    }
+    longInput.flip();
+
+    ByteBuffer longCompressed = ByteBuffer.allocateDirect(DeltaOfDeltaCompressor.INSTANCE.maxCompressedSize(longInput.remaining()));
+    DeltaOfDeltaCompressor.INSTANCE.compress(longInput.duplicate(), longCompressed);
+    longCompressed.flip();
+
+    ByteBuffer longDecompressed = ByteBuffer.allocateDirect(DeltaOfDeltaDecompressor.INSTANCE.decompressedLength(longCompressed.duplicate()));
+    DeltaOfDeltaDecompressor.INSTANCE.decompress(longCompressed, longDecompressed);
+
+    longDecompressed.flip();
+    for (long value : longValues) {
+      assertEquals(value, longDecompressed.getLong());
+    }
+
+    // Test empty input
+    ByteBuffer emptyInput = ByteBuffer.allocateDirect(0);
+    ByteBuffer emptyCompressed = ByteBuffer.allocateDirect(DeltaOfDeltaCompressor.INSTANCE.maxCompressedSize(0));
+    DeltaOfDeltaCompressor.INSTANCE.compress(emptyInput, emptyCompressed);
+    emptyCompressed.flip();
+
+    ByteBuffer emptyDecompressed = ByteBuffer.allocateDirect(DeltaOfDeltaDecompressor.INSTANCE.decompressedLength(emptyCompressed.duplicate()));
+    DeltaOfDeltaDecompressor.INSTANCE.decompress(emptyCompressed, emptyDecompressed);
+    assertEquals(0, emptyDecompressed.remaining());
+
+    // Test single value
+    ByteBuffer singleInput = ByteBuffer.allocateDirect(Integer.BYTES);
+    singleInput.putInt(42);
+    singleInput.flip();
+
+    ByteBuffer singleCompressed = ByteBuffer.allocateDirect(DeltaOfDeltaCompressor.INSTANCE.maxCompressedSize(singleInput.remaining()));
+    DeltaOfDeltaCompressor.INSTANCE.compress(singleInput.duplicate(), singleCompressed);
+    singleCompressed.flip();
+
+    ByteBuffer singleDecompressed = ByteBuffer.allocateDirect(DeltaOfDeltaDecompressor.INSTANCE.decompressedLength(singleCompressed.duplicate()));
+    DeltaOfDeltaDecompressor.INSTANCE.decompress(singleCompressed, singleDecompressed);
+
+    singleDecompressed.flip();
+    assertEquals(42, singleDecompressed.getInt());
+  }
+
+  @Test
+  public void testCompressionRatio() throws IOException {
+    // Generate a sequence with constant deltas
+    int[] linearSequence = new int[1000];
+    for (int i = 0; i < linearSequence.length; i++) {
+      linearSequence[i] = i * 5; // constant delta of 5
+    }
+    ByteBuffer linearInput = ByteBuffer.allocate(linearSequence.length * Integer.BYTES);
+    for (int value : linearSequence) {
+      linearInput.putInt(value);
+    }
+    linearInput.flip();
+
+    // Generate a sequence with constant second derivative
+    int[] quadraticSequence = new int[1000];
+    int value = 0;
+    int delta = 5;
+    for (int i = 0; i < quadraticSequence.length; i++) {
+      quadraticSequence[i] = value;
+      value += delta;
+      delta += 2; // constant second derivative
+    }
+    ByteBuffer quadraticInput = ByteBuffer.allocate(quadraticSequence.length * Integer.BYTES);
+    for (int v : quadraticSequence) {
+      quadraticInput.putInt(v);
+    }
+    quadraticInput.flip();
+
+    // Test Delta compression
+    ByteBuffer deltaCompressed = ByteBuffer.allocate(linearSequence.length * Integer.BYTES);
+    int deltaSizeLinear = DeltaCompressor.INSTANCE.compress(linearInput.duplicate(), deltaCompressed);
+    
+    // Test DeltaOfDelta compression
+    ByteBuffer deltaOfDeltaCompressed = ByteBuffer.allocate(quadraticSequence.length * Integer.BYTES);
+    int deltaOfDeltaSizeQuadratic = DeltaOfDeltaCompressor.INSTANCE.compress(quadraticInput.duplicate(), deltaOfDeltaCompressed);
+
+    // Delta should be more efficient for linear sequence
+    assertTrue(deltaSizeLinear < linearInput.capacity());
+    
+    // DeltaOfDelta should be more efficient for quadratic sequence
+    assertTrue(deltaOfDeltaSizeQuadratic < quadraticInput.capacity());
+  }
+
   private static void roundtrip(ChunkCompressor compressor, ByteBuffer rawInput)
       throws IOException {
     ByteBuffer compressedOutput = ByteBuffer.allocateDirect(compressor.maxCompressedSize(rawInput.limit()));

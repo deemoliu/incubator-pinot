@@ -52,27 +52,24 @@ public class ChunkCompressorFactory {
    */
   public static ChunkCompressor getCompressor(ChunkCompressionType compressionType, boolean upgradeToLengthPrefixed) {
     switch (compressionType) {
-
       case PASS_THROUGH:
-        return PassThroughCompressor.INSTANCE;
-
+        return new PassThroughCompressor();
       case SNAPPY:
-        return SnappyCompressor.INSTANCE;
-
+        return new SnappyCompressor();
       case ZSTANDARD:
-        return ZstandardCompressor.INSTANCE;
-
+        return new ZstandardCompressor();
       case LZ4:
-        return upgradeToLengthPrefixed ? LZ4WithLengthCompressor.INSTANCE : LZ4Compressor.INSTANCE;
-
+        return new LZ4Compressor();
       case LZ4_LENGTH_PREFIXED:
-        return LZ4WithLengthCompressor.INSTANCE;
-
+        return new LZ4WithLengthCompressor();
       case GZIP:
         return new GzipCompressor();
-
+      case DELTA:
+        return DeltaCompressor.INSTANCE;
+      case DELTA_OF_DELTA:
+        return DeltaOfDeltaCompressor.INSTANCE;
       default:
-        throw new IllegalArgumentException("Illegal compressor name " + compressionType);
+        throw new IllegalArgumentException("Unsupported compression type: " + compressionType);
     }
   }
 
@@ -85,25 +82,23 @@ public class ChunkCompressorFactory {
   public static ChunkDecompressor getDecompressor(ChunkCompressionType compressionType) {
     switch (compressionType) {
       case PASS_THROUGH:
-        return PassThroughDecompressor.INSTANCE;
-
+        return new PassThroughDecompressor();
       case SNAPPY:
-        return SnappyDecompressor.INSTANCE;
-
+        return new SnappyDecompressor();
       case ZSTANDARD:
-        return ZstandardDecompressor.INSTANCE;
-
+        return new ZstandardDecompressor();
       case LZ4:
-        return LZ4Decompressor.INSTANCE;
-
+        return new LZ4Decompressor();
       case LZ4_LENGTH_PREFIXED:
-        return LZ4WithLengthDecompressor.INSTANCE;
-
+        return new LZ4WithLengthDecompressor();
       case GZIP:
         return new GzipDecompressor();
-
+      case DELTA:
+        return DeltaDecompressor.INSTANCE;
+      case DELTA_OF_DELTA:
+        return DeltaOfDeltaDecompressor.INSTANCE;
       default:
-        throw new IllegalArgumentException("Illegal compressor name " + compressionType);
+        throw new IllegalArgumentException("Unsupported compression type: " + compressionType);
     }
   }
 }

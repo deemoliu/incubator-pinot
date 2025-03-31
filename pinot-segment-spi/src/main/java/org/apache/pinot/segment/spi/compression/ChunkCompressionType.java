@@ -19,24 +19,16 @@
 package org.apache.pinot.segment.spi.compression;
 
 public enum ChunkCompressionType {
-  PASS_THROUGH(0), SNAPPY(1), ZSTANDARD(2), LZ4(3), LZ4_LENGTH_PREFIXED(4), GZIP(5);
+  PASS_THROUGH,
+  SNAPPY,
+  LZ4,
+  LZ4_LENGTH_PREFIXED,
+  ZSTANDARD,
+  GZIP,
+  DELTA,
+  DELTA_OF_DELTA;
 
-  private static final ChunkCompressionType[] VALUES = values();
-
-  private final int _value;
-
-  ChunkCompressionType(int value) {
-    _value = value;
-  }
-
-  public int getValue() {
-    return _value;
-  }
-
-  public static ChunkCompressionType valueOf(int ordinal) {
-    if (ordinal < 0 || ordinal >= VALUES.length) {
-      throw new IllegalArgumentException("invalid ordinal " + ordinal);
-    }
-    return VALUES[ordinal];
+  public static ChunkCompressionType valueOf(int value) {
+    return values()[value];
   }
 }
