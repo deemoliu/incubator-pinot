@@ -132,6 +132,8 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
         .setNewSegmentTrackingTimeMs(upsertConfig.getNewSegmentTrackingTimeMs())
         .setMetadataManagerConfigs(upsertConfig.getMetadataManagerConfigs())
         .setAllowPartialUpsertConsumptionDuringCommit(allowPartialUpsertConsumptionDuringCommit)
+        .setPrimaryKeyMapSize(upsertConfig.getPrimaryKeyMapSize())
+        .setPrimaryKeyExceedBehavior(upsertConfig.getPrimaryKeyExceedBehavior())
         .build();
     LOGGER.info("Initialized {} for table: {} with: {}", getClass().getSimpleName(), _tableNameWithType, _context);
 

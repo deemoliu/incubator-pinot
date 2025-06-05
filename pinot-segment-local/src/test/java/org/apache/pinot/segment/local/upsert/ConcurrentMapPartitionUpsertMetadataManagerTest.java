@@ -52,6 +52,7 @@ import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap
 import org.apache.pinot.segment.spi.index.reader.ForwardIndexReader;
 import org.apache.pinot.spi.config.table.HashFunction;
 import org.apache.pinot.spi.config.table.TableConfig;
+import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
@@ -1719,5 +1720,51 @@ public class ConcurrentMapPartitionUpsertMetadataManagerTest {
     public int hashCode() {
       return _value;
     }
+  }
+
+  @Test
+  public void testPrimaryKeyMapSizeLimit()
+      throws IOException {
+    _contextBuilder.setPrimaryKeyMapSize(2).setPrimaryKeyExceedBehavior(UpsertConfig.PrimaryKeyExceedBehavior.ERROR);
+    ConcurrentMapPartitionUpsertMetadataManager upsertMetadataManager =
+        new ConcurrentMapPartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, _contextBuilder.build());
+    Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
+
+    // Add records up to the limit
+    ThreadSafeMutableRoaringBitmap validDocIds = new ThreadSafeMutableRoaringBitmap();
+    MutableSegment segment = mockMutableSegment(1, validDocIds, null);
+
+    // Add first record
+    upsertMetadataManager.addRecord(segment, new RecordInfo(makePrimaryKey(1), 0, new IntWrapper(100), false));
+    assertEquals(recordLocationMap.size(), 1);
+    checkRecordLocation(recordLocationMap, 1, segment, 0, 100, HashFunction.NONE);
+
+    // Add second record
+    upsertMetadataManager.addRecord(segment, new RecordInfo(makePrimaryKey(2), 1, new IntWrapper(100), false));
+    assertEquals(recordLocationMap.size(), 2);
+    checkRecordLocation(recordLocationMap, 2, segment, 1, 100, HashFunction.NONE);
+
+    // Update existing record should work
+    upsertMetadataManager.addRecord(segment, new RecordInfo(makePrimaryKey(1), 2, new IntWrapper(200), false));
+    assertEquals(recordLocationMap.size(), 2);
+    checkRecordLocation(recordLocationMap, 1, segment, 2, 200, HashFunction.NONE);
+    checkRecordLocation(recordLocationMap, 2, segment, 1, 100, HashFunction.NONE);
+
+    // Try to add third record, should throw exception
+    try {
+      upsertMetadataManager.addRecord(segment, new RecordInfo(makePrimaryKey(3), 2, new IntWrapper(100), false));
+      fail("Should throw exception when exceeding primary key map size in ERROR mode");
+    } catch (IllegalStateException e) {
+      assertTrue(e.getMessage().contains("Cannot add more primary keys"));
+    }
+
+    // Verify map size hasn't changed
+    assertEquals(recordLocationMap.size(), 2);
+
+    // Stop the metadata manager
+    upsertMetadataManager.stop();
+
+    // Close the metadata manager
+    upsertMetadataManager.close();
   }
 }

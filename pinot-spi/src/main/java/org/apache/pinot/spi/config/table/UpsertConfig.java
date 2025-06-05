@@ -45,6 +45,10 @@ public class UpsertConfig extends BaseJsonConfig {
     NONE, SYNC, SNAPSHOT
   }
 
+  public enum PrimaryKeyExceedBehavior {
+    ERROR, NO_OP
+  }
+
   @JsonPropertyDescription("Upsert mode.")
   private Mode _mode = Mode.FULL;
 
@@ -111,6 +115,12 @@ public class UpsertConfig extends BaseJsonConfig {
   // Setting this time to 0 to disable the tracking feature.
   @JsonPropertyDescription("Track newly added segments on the server for a more complete upsert data view.")
   private long _newSegmentTrackingTimeMs = 10000;
+
+  @JsonPropertyDescription("Maximum size of primary key map per partition for upsert metadata manager")
+  private long _primaryKeyMapSize = 0L;
+
+  @JsonPropertyDescription("Behavior when primary key map size exceeds the limit")
+  private PrimaryKeyExceedBehavior _primaryKeyExceedBehavior = PrimaryKeyExceedBehavior.NO_OP;
 
   @JsonPropertyDescription("Custom class for upsert metadata manager")
   private String _metadataManagerClass;
@@ -299,6 +309,23 @@ public class UpsertConfig extends BaseJsonConfig {
 
   public void setNewSegmentTrackingTimeMs(long newSegmentTrackingTimeMs) {
     _newSegmentTrackingTimeMs = newSegmentTrackingTimeMs;
+  }
+
+  public long getPrimaryKeyMapSize() {
+    return _primaryKeyMapSize;
+  }
+
+  public void setPrimaryKeyMapSize(long primaryKeyMapSize) {
+    _primaryKeyMapSize = primaryKeyMapSize;
+  }
+
+  public PrimaryKeyExceedBehavior getPrimaryKeyExceedBehavior() {
+    return _primaryKeyExceedBehavior;
+  }
+
+  public void setPrimaryKeyExceedBehavior(PrimaryKeyExceedBehavior primaryKeyExceedBehavior) {
+    Preconditions.checkArgument(primaryKeyExceedBehavior != null, "Primary key exceed behavior cannot be null");
+    _primaryKeyExceedBehavior = primaryKeyExceedBehavior;
   }
 
   @Nullable

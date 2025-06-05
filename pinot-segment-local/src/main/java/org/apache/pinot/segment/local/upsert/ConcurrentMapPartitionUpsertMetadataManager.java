@@ -35,6 +35,7 @@ import org.apache.pinot.segment.local.utils.HashUtils;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
+import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
@@ -50,17 +51,33 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   // Used to initialize a reference to previous row for merging in partial upsert
   private final LazyRow _reusePreviousRow = new LazyRow();
   private final Map<String, Object> _reuseMergeResultHolder = new HashMap<>();
+  private final long _primaryKeyMapSize;
+  private final UpsertConfig.PrimaryKeyExceedBehavior _primaryKeyExceedBehavior;
 
   @VisibleForTesting
   final ConcurrentHashMap<Object, RecordLocation> _primaryKeyToRecordLocationMap = new ConcurrentHashMap<>();
 
   public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId, UpsertContext context) {
     super(tableNameWithType, partitionId, context);
+    UpsertConfig upsertConfig = context.getTableConfig().getUpsertConfig();
+    _primaryKeyMapSize = upsertConfig.getPrimaryKeyMapSize();
+    _primaryKeyExceedBehavior = upsertConfig.getPrimaryKeyExceedBehavior();
   }
 
   @Override
   protected long getNumPrimaryKeys() {
     return _primaryKeyToRecordLocationMap.size();
+  }
+
+  private void checkAndEnforceRecordLimit() {
+    if (_primaryKeyMapSize > 0 && _primaryKeyToRecordLocationMap.size() >= _primaryKeyMapSize) {
+      if (_primaryKeyExceedBehavior == UpsertConfig.PrimaryKeyExceedBehavior.ERROR) {
+        throw new IllegalStateException(
+            String.format("Cannot add more primary keys. Maximum size of primary key map (%d) reached for partition %d in table %s",
+                _primaryKeyMapSize, _partitionId, _tableNameWithType));
+      }
+      // For NO_OP behavior, just return without throwing exception
+    }
   }
 
   @Override
@@ -145,6 +162,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               }
             } else {
               // New primary key
+              checkAndEnforceRecordLimit();
               addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
               return new RecordLocation(segment, newDocId, newComparisonValue);
             }
@@ -163,6 +181,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
     segment.enableUpsert(this, validDocIds, queryableDocIds);
     while (recordInfoIterator.hasNext()) {
       RecordInfo recordInfo = recordInfoIterator.next();
+      checkAndEnforceRecordLimit();
       int newDocId = recordInfo.getDocId();
       Comparable newComparisonValue = recordInfo.getComparisonValue();
       addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
@@ -283,6 +302,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
             }
           } else {
             // New primary key
+            checkAndEnforceRecordLimit();
             addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
             return new RecordLocation(segment, newDocId, newComparisonValue);
           }

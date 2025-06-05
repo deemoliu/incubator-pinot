@@ -55,6 +55,8 @@ public class UpsertContext {
   private final long _newSegmentTrackingTimeMs;
   @Nullable
   private final Map<String, String> _metadataManagerConfigs;
+  private final long _primaryKeyMapSize;
+  private final UpsertConfig.PrimaryKeyExceedBehavior _primaryKeyExceedBehavior;
 
   /// @deprecated use {@link org.apache.pinot.spi.config.table.ingestion.ParallelSegmentConsumptionPolicy)} instead.
   @Deprecated
@@ -72,7 +74,8 @@ public class UpsertContext {
       boolean enableDeletedKeysCompactionConsistency, UpsertConfig.ConsistencyMode consistencyMode,
       long upsertViewRefreshIntervalMs, long newSegmentTrackingTimeMs,
       @Nullable Map<String, String> metadataManagerConfigs, boolean allowPartialUpsertConsumptionDuringCommit,
-      @Nullable TableDataManager tableDataManager, File tableIndexDir) {
+      @Nullable TableDataManager tableDataManager, File tableIndexDir, long primaryKeyMapSize,
+      UpsertConfig.PrimaryKeyExceedBehavior primaryKeyExceedBehavior) {
     _tableConfig = tableConfig;
     _schema = schema;
     _primaryKeyColumns = primaryKeyColumns;
@@ -94,6 +97,8 @@ public class UpsertContext {
     _allowPartialUpsertConsumptionDuringCommit = allowPartialUpsertConsumptionDuringCommit;
     _tableDataManager = tableDataManager;
     _tableIndexDir = tableIndexDir;
+    _primaryKeyMapSize = primaryKeyMapSize;
+    _primaryKeyExceedBehavior = primaryKeyExceedBehavior;
   }
 
   public TableConfig getTableConfig() {
@@ -190,6 +195,14 @@ public class UpsertContext {
     return _tableIndexDir;
   }
 
+  public long getPrimaryKeyMapSize() {
+    return _primaryKeyMapSize;
+  }
+
+  public UpsertConfig.PrimaryKeyExceedBehavior getPrimaryKeyExceedBehavior() {
+    return _primaryKeyExceedBehavior;
+  }
+
   @Override
   public String toString() {
     return new ToStringBuilder(this)
@@ -211,6 +224,8 @@ public class UpsertContext {
         .append("metadataManagerConfigs", _metadataManagerConfigs)
         .append("allowPartialUpsertConsumptionDuringCommit", _allowPartialUpsertConsumptionDuringCommit)
         .append("tableIndexDir", _tableIndexDir)
+        .append("primaryKeyMapSize", _primaryKeyMapSize)
+        .append("primaryKeyExceedBehavior", _primaryKeyExceedBehavior)
         .toString();
   }
 
@@ -237,6 +252,8 @@ public class UpsertContext {
     private boolean _allowPartialUpsertConsumptionDuringCommit;
     private TableDataManager _tableDataManager;
     private File _tableIndexDir;
+    private long _primaryKeyMapSize;
+    private UpsertConfig.PrimaryKeyExceedBehavior _primaryKeyExceedBehavior = UpsertConfig.PrimaryKeyExceedBehavior.ERROR;
 
     public Builder setTableConfig(TableConfig tableConfig) {
       _tableConfig = tableConfig;
@@ -344,6 +361,16 @@ public class UpsertContext {
       return this;
     }
 
+    public Builder setPrimaryKeyMapSize(long primaryKeyMapSize) {
+      _primaryKeyMapSize = primaryKeyMapSize;
+      return this;
+    }
+
+    public Builder setPrimaryKeyExceedBehavior(UpsertConfig.PrimaryKeyExceedBehavior primaryKeyExceedBehavior) {
+      _primaryKeyExceedBehavior = primaryKeyExceedBehavior;
+      return this;
+    }
+
     public UpsertContext build() {
       Preconditions.checkState(_tableConfig != null, "Table config must be set");
       Preconditions.checkState(_schema != null, "Schema must be set");
@@ -359,7 +386,8 @@ public class UpsertContext {
           _partialUpsertHandler, _deleteRecordColumn, _dropOutOfOrderRecord, _outOfOrderRecordColumn, _enableSnapshot,
           _enablePreload, _metadataTTL, _deletedKeysTTL, _enableDeletedKeysCompactionConsistency, _consistencyMode,
           _upsertViewRefreshIntervalMs, _newSegmentTrackingTimeMs, _metadataManagerConfigs,
-          _allowPartialUpsertConsumptionDuringCommit, _tableDataManager, _tableIndexDir);
+          _allowPartialUpsertConsumptionDuringCommit, _tableDataManager, _tableIndexDir, _primaryKeyMapSize,
+          _primaryKeyExceedBehavior);
     }
   }
 }
