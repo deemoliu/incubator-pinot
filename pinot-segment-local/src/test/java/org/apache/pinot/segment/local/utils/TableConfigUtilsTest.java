@@ -2570,6 +2570,20 @@ public class TableConfigUtilsTest {
   }
 
   /**
+   * Tests that the partial upsert config fails when sorted columns are used.
+   */
+  @Test
+  public void partialUpsertConfigFailWhenSortedColumnsUsed() {
+    try {
+      testPartialUpsertConfigNullability((tableConfigBuilder, schemaBuilder) -> {
+        tableConfigBuilder.setSortedColumn("myCol1");
+      });
+    } catch (IllegalStateException e) {
+      assertEquals(e.getMessage(), "Sorted columns cannot be used with partial upsert mode.");
+    }
+  }
+
+  /**
    * Tests that the partial upsert config succeeds when table null handling is used.
    *
    * This means that schema nullability is turned off, but table null handling is turned on.

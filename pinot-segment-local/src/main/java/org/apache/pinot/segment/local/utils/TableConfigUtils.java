@@ -1033,6 +1033,11 @@ public final class TableConfigUtils {
         }
       }
     }
+
+    // check sorted column and partial upsert are not used together
+    List<String> sortedColumns = tableConfig.getIndexingConfig().getSortedColumn();
+    Preconditions.checkState(CollectionUtils.isEmpty(sortedColumns),
+        "Sorted columns cannot be used with partial upsert mode.");
   }
 
   /**
