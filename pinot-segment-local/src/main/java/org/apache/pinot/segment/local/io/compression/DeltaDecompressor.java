@@ -40,7 +40,7 @@ class DeltaDecompressor implements ChunkDecompressor {
   @Override
   public int decompress(ByteBuffer compressedInput, ByteBuffer decompressedOutput)
       throws IOException {
-    
+
     // Read and validate type flag (only LONG supported), TODO: support INT
     byte flag = compressedInput.get();
     if (flag != LONG_FLAG) {

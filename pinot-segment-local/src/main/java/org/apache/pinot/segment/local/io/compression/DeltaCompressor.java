@@ -96,8 +96,6 @@ class DeltaCompressor implements ChunkCompressor {
 
     // Compress delta values using LZ4
     LZ4_FACTORY.fastCompressor().compress(deltaBuffer, outCompressed);
-    // passthrough copy
-    // outCompressed.put(deltaBuffer);
 
     // Record compressed size
     int compressedSize = outCompressed.position() - compressedStart;
