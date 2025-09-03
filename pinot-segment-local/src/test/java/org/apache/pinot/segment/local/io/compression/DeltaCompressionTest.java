@@ -20,9 +20,9 @@ package org.apache.pinot.segment.local.io.compression;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.pinot.segment.spi.compression.ChunkCompressionType;
 import org.apache.pinot.segment.spi.compression.ChunkCompressor;
 import org.apache.pinot.segment.spi.compression.ChunkDecompressor;
-import org.apache.pinot.segment.spi.compression.ChunkCompressionType;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
