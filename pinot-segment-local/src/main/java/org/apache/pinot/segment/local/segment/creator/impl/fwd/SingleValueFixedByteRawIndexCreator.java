@@ -68,8 +68,14 @@ public class SingleValueFixedByteRawIndexCreator implements ForwardIndexCreator 
       int totalDocs, DataType valueType, int writerVersion, int targetDocsPerChunk)
       throws IOException {
     File file = new File(baseIndexDir, column + V1Constants.Indexes.RAW_SV_FORWARD_INDEX_FILE_EXTENSION);
+    // DELTA/DELTADELTA only support LONG sequences. Fallback to LZ4 for other fixed-width types.
+    ChunkCompressionType effectiveType = compressionType;
+    if ((compressionType == ChunkCompressionType.DELTA || compressionType == ChunkCompressionType.DELTADELTA)
+        && valueType != DataType.LONG) {
+      effectiveType = ChunkCompressionType.LZ4;
+    }
     _indexWriter =
-        new FixedByteChunkForwardIndexWriter(file, compressionType, totalDocs, targetDocsPerChunk, valueType.size(),
+        new FixedByteChunkForwardIndexWriter(file, effectiveType, totalDocs, targetDocsPerChunk, valueType.size(),
             writerVersion);
     _valueType = valueType;
   }

@@ -218,11 +218,18 @@ public abstract class BaseChunkForwardIndexReader implements ForwardIndexReader<
 
     try {
       if (_compressionType == ChunkCompressionType.DELTA || _compressionType == ChunkCompressionType.DELTADELTA) {
-        // For delta-based compression, pre-size the output using decompressor's length calculation.
+        // For delta-based compression, compute output size and decompress into the context buffer (no reallocation)
         ByteBuffer compressedBuffer = _dataBuffer.toDirectByteBuffer(chunkPosition, chunkSize);
         int decompressedSize = _chunkDecompressor.decompressedLength(compressedBuffer);
-        decompressedBuffer = ByteBuffer.allocateDirect(decompressedSize);
-        _chunkDecompressor.decompress(compressedBuffer, decompressedBuffer);
+        // Ensure the buffer limit matches the expected output size
+        if (decompressedSize <= decompressedBuffer.capacity()) {
+          decompressedBuffer.limit(decompressedSize);
+          _chunkDecompressor.decompress(compressedBuffer, decompressedBuffer);
+        } else {
+          // Should not happen for properly sized contexts
+          throw new RuntimeException("Decompressed size " + decompressedSize + " exceeds context buffer capacity "
+              + decompressedBuffer.capacity());
+        }
       } else {
         _chunkDecompressor.decompress(_dataBuffer.toDirectByteBuffer(chunkPosition, chunkSize), decompressedBuffer);
       }

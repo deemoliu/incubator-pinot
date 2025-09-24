@@ -122,6 +122,13 @@ public class ForwardIndexType extends AbstractIndexType<ForwardIndexConfig, Forw
       } else {
         Preconditions.checkState(compressionCodec == null || compressionCodec.isApplicableToRawIndex(),
             "Compression codec: %s is not applicable to raw column: %s", compressionCodec, column);
+        // Additional validation: DELTA/DELTADELTA only supported for LONG raw columns
+        if (compressionCodec == CompressionCodec.DELTA || compressionCodec == CompressionCodec.DELTADELTA) {
+          FieldSpec.DataType stored = fieldSpec.getDataType().getStoredType();
+          Preconditions.checkState(stored == FieldSpec.DataType.LONG,
+              "Compression codec %s is only supported for LONG stored type on raw columns (column: %s, storedType: %s)",
+              compressionCodec, column, stored);
+        }
       }
     }
   }

@@ -98,7 +98,12 @@ public class VarByteChunkForwardIndexWriterV4 implements VarByteChunkWriter {
     _dataBuffer = new File(file.getParentFile(), file.getName() + DATA_BUFFER_SUFFIX);
     _output = new RandomAccessFile(file, "rw");
     _dataChannel = new RandomAccessFile(_dataBuffer, "rw").getChannel();
-    _chunkCompressor = ChunkCompressorFactory.getCompressor(compressionType, true);
+    // DELTA and DELTADELTA are numeric-only compressors; var-byte writers must use byte-oriented codecs.
+    ChunkCompressionType effectiveType = compressionType;
+    if (compressionType == ChunkCompressionType.DELTA || compressionType == ChunkCompressionType.DELTADELTA) {
+      effectiveType = ChunkCompressionType.LZ4;
+    }
+    _chunkCompressor = ChunkCompressorFactory.getCompressor(effectiveType, true);
     _chunkBuffer = ByteBuffer.allocateDirect(chunkSize).order(ByteOrder.LITTLE_ENDIAN);
     _compressionBuffer =
         ByteBuffer.allocateDirect(_chunkCompressor.maxCompressedSize(chunkSize)).order(ByteOrder.LITTLE_ENDIAN);

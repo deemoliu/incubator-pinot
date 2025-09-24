@@ -92,9 +92,20 @@ public abstract class BaseChunkForwardIndexWriter implements Closeable {
         "Illegal version: %s for %s bytes values", version, fixed ? "fixed" : "variable");
     Preconditions.checkArgument(chunkSize <= Integer.MAX_VALUE, "Chunk size limited to 2GB");
     _chunkSize = (int) chunkSize;
-    _chunkCompressor = ChunkCompressorFactory.getCompressor(compressionType);
+    // For variable-width (non-fixed) writers, DELTA and DELTADELTA are not applicable. Fallback to LZ4.
+    ChunkCompressionType effectiveType = compressionType;
+    if (!fixed && (compressionType == ChunkCompressionType.DELTA
+        || compressionType == ChunkCompressionType.DELTADELTA)) {
+      effectiveType = ChunkCompressionType.LZ4;
+    }
+    // For fixed-width writers, DELTA/DELTADELTA only support LONG. Fallback if entry size != 8 bytes.
+    if (fixed && (compressionType == ChunkCompressionType.DELTA
+        || compressionType == ChunkCompressionType.DELTADELTA) && sizeOfEntry != Long.BYTES) {
+      effectiveType = ChunkCompressionType.LZ4;
+    }
+    _chunkCompressor = ChunkCompressorFactory.getCompressor(effectiveType);
     _headerEntryChunkOffsetSize = version == 2 ? Integer.BYTES : Long.BYTES;
-    _dataOffset = writeHeader(compressionType, totalDocs, numDocsPerChunk, sizeOfEntry, version);
+    _dataOffset = writeHeader(effectiveType, totalDocs, numDocsPerChunk, sizeOfEntry, version);
     _chunkBuffer = ByteBuffer.allocateDirect(_chunkSize);
     int maxCompressedChunkSize = _chunkCompressor.maxCompressedSize(_chunkSize); // may exceed original chunk size
     _compressedBuffer = ByteBuffer.allocateDirect(maxCompressedChunkSize);
