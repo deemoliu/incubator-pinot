@@ -217,7 +217,8 @@ public abstract class BaseChunkForwardIndexReader implements ForwardIndexReader<
     decompressedBuffer.clear();
 
     try {
-      if (_compressionType == ChunkCompressionType.DELTA || _compressionType == ChunkCompressionType.DELTADELTA) {
+      if (_compressionType == ChunkCompressionType.DELTA || _compressionType == ChunkCompressionType.DELTADELTA
+          || _compressionType == ChunkCompressionType.XOR) {
         // For delta-based compression, pre-size the output using decompressor's length calculation.
         ByteBuffer compressedBuffer = _dataBuffer.toDirectByteBuffer(chunkPosition, chunkSize);
         int decompressedSize = _chunkDecompressor.decompressedLength(compressedBuffer);
