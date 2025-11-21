@@ -19,7 +19,16 @@
 package org.apache.pinot.segment.spi.compression;
 
 public enum ChunkCompressionType {
-  PASS_THROUGH(0), SNAPPY(1), ZSTANDARD(2), LZ4(3), LZ4_LENGTH_PREFIXED(4), GZIP(5), DELTA(6), DELTADELTA(7);
+  PASS_THROUGH(0),
+  SNAPPY(1),
+  ZSTANDARD(2),
+  LZ4(3),
+  LZ4_LENGTH_PREFIXED(4),
+  GZIP(5),
+  DELTA(6),
+  DELTADELTA(7),
+  XOR_LZ4(8),
+  XOR_ZSTD(9);
 
   private static final ChunkCompressionType[] VALUES = values();
 

@@ -132,6 +132,15 @@ public class ForwardIndexConfig extends IndexConfig {
           _chunkCompressionType = ChunkCompressionType.GZIP;
           _dictIdCompressionType = null;
           break;
+        case XOR:
+        case XOR_LZ4:
+          _chunkCompressionType = ChunkCompressionType.XOR_LZ4;
+          _dictIdCompressionType = null;
+          break;
+        case XOR_ZSTD:
+          _chunkCompressionType = ChunkCompressionType.XOR_ZSTD;
+          _dictIdCompressionType = null;
+          break;
         case DELTA:
           _chunkCompressionType = ChunkCompressionType.DELTA;
           _dictIdCompressionType = null;
@@ -185,6 +194,10 @@ public class ForwardIndexConfig extends IndexConfig {
           return CompressionCodec.ZSTANDARD;
         case LZ4:
           return CompressionCodec.LZ4;
+        case XOR_LZ4:
+          return CompressionCodec.XOR_LZ4;
+        case XOR_ZSTD:
+          return CompressionCodec.XOR_ZSTD;
         case DELTA:
           return CompressionCodec.DELTA;
         case DELTADELTA:

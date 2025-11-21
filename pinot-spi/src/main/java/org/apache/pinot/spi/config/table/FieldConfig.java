@@ -141,6 +141,9 @@ public class FieldConfig extends BaseJsonConfig {
     ZSTANDARD(true, false),
     LZ4(true, false),
     GZIP(true, false),
+    XOR(true, false),
+    XOR_ZSTD(true, false),
+    XOR_LZ4(true, false),
 
     // For MV dictionary encoded forward index, add a second level dictionary encoding for the multi-value entries
     MV_ENTRY_DICT(false, true),
