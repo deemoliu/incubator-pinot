@@ -872,6 +872,22 @@ public final class TableConfigUtils {
             "Positive newSegmentTrackingTimeMs is required to enable consistency mode: "
                 + upsertConfig.getConsistencyMode());
       }
+
+      String condOp = upsertConfig.getConditionalUpdateOperator();
+      if (condOp != null) {
+        switch (condOp.trim()) {
+          case ">":
+          case ">=":
+          case "==":
+          case "!=":
+          case "<":
+          case "<=":
+            break;
+          default:
+            throw new IllegalStateException(
+                "Invalid upsert conditionalUpdateOperator: " + condOp + ". Allowed: >, >=, ==, !=, <, <=");
+        }
+      }
     }
 
     Preconditions.checkState(

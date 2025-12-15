@@ -55,6 +55,8 @@ public class UpsertContext {
   private final long _newSegmentTrackingTimeMs;
   @Nullable
   private final Map<String, String> _metadataManagerConfigs;
+  @Nullable
+  private final String _conditionalUpdateOperator;
 
   /// @deprecated use {@link org.apache.pinot.spi.config.table.ingestion.ParallelSegmentConsumptionPolicy)} instead.
   @Deprecated
@@ -70,8 +72,8 @@ public class UpsertContext {
       @Nullable String deleteRecordColumn, boolean dropOutOfOrderRecord, @Nullable String outOfOrderRecordColumn,
       boolean enableSnapshot, boolean enablePreload, double metadataTTL, double deletedKeysTTL,
       boolean enableDeletedKeysCompactionConsistency, UpsertConfig.ConsistencyMode consistencyMode,
-      long upsertViewRefreshIntervalMs, long newSegmentTrackingTimeMs,
-      @Nullable Map<String, String> metadataManagerConfigs, boolean allowPartialUpsertConsumptionDuringCommit,
+      long upsertViewRefreshIntervalMs, long newSegmentTrackingTimeMs, @Nullable Map<String, String> metadataManagerConfigs,
+      @Nullable String conditionalUpdateOperator, boolean allowPartialUpsertConsumptionDuringCommit,
       @Nullable TableDataManager tableDataManager, File tableIndexDir) {
     _tableConfig = tableConfig;
     _schema = schema;
@@ -91,6 +93,7 @@ public class UpsertContext {
     _upsertViewRefreshIntervalMs = upsertViewRefreshIntervalMs;
     _newSegmentTrackingTimeMs = newSegmentTrackingTimeMs;
     _metadataManagerConfigs = metadataManagerConfigs;
+    _conditionalUpdateOperator = conditionalUpdateOperator;
     _allowPartialUpsertConsumptionDuringCommit = allowPartialUpsertConsumptionDuringCommit;
     _tableDataManager = tableDataManager;
     _tableIndexDir = tableIndexDir;
@@ -172,6 +175,11 @@ public class UpsertContext {
   }
 
   @Nullable
+  public String getConditionalUpdateOperator() {
+    return _conditionalUpdateOperator;
+  }
+
+  @Nullable
   public Map<String, String> getMetadataManagerConfigs() {
     return _metadataManagerConfigs;
   }
@@ -233,6 +241,7 @@ public class UpsertContext {
     private long _upsertViewRefreshIntervalMs;
     private long _newSegmentTrackingTimeMs;
     private Map<String, String> _metadataManagerConfigs;
+    private String _conditionalUpdateOperator;
     @Deprecated
     private boolean _allowPartialUpsertConsumptionDuringCommit;
     private TableDataManager _tableDataManager;
@@ -323,6 +332,11 @@ public class UpsertContext {
       return this;
     }
 
+    public Builder setConditionalUpdateOperator(String conditionalUpdateOperator) {
+      _conditionalUpdateOperator = conditionalUpdateOperator;
+      return this;
+    }
+
     public Builder setMetadataManagerConfigs(Map<String, String> metadataManagerConfigs) {
       _metadataManagerConfigs = metadataManagerConfigs;
       return this;
@@ -358,7 +372,7 @@ public class UpsertContext {
       return new UpsertContext(_tableConfig, _schema, _primaryKeyColumns, _hashFunction, _comparisonColumns,
           _partialUpsertHandler, _deleteRecordColumn, _dropOutOfOrderRecord, _outOfOrderRecordColumn, _enableSnapshot,
           _enablePreload, _metadataTTL, _deletedKeysTTL, _enableDeletedKeysCompactionConsistency, _consistencyMode,
-          _upsertViewRefreshIntervalMs, _newSegmentTrackingTimeMs, _metadataManagerConfigs,
+          _upsertViewRefreshIntervalMs, _newSegmentTrackingTimeMs, _metadataManagerConfigs, _conditionalUpdateOperator,
           _allowPartialUpsertConsumptionDuringCommit, _tableDataManager, _tableIndexDir);
     }
   }

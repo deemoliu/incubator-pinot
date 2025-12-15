@@ -108,6 +108,11 @@ public class UpsertConfig extends BaseJsonConfig {
   @JsonPropertyDescription("Configure the way to provide consistent view for upsert table")
   private ConsistencyMode _consistencyMode = ConsistencyMode.NONE;
 
+  @JsonPropertyDescription("Conditional update operator to decide if an incoming record should replace the current one "
+      + "for the same primary key, based on comparison value. Allowed values: >, >=, ==, !=, <, <=. Default: >=")
+  @Nullable
+  private String _conditionalUpdateOperator;
+
   @JsonPropertyDescription("Refresh interval when using the snapshot consistency mode")
   private long _upsertViewRefreshIntervalMs = 3000;
 
@@ -302,6 +307,15 @@ public class UpsertConfig extends BaseJsonConfig {
 
   public void setUpsertViewRefreshIntervalMs(long upsertViewRefreshIntervalMs) {
     _upsertViewRefreshIntervalMs = upsertViewRefreshIntervalMs;
+  }
+
+  @Nullable
+  public String getConditionalUpdateOperator() {
+    return _conditionalUpdateOperator;
+  }
+
+  public void setConditionalUpdateOperator(@Nullable String conditionalUpdateOperator) {
+    _conditionalUpdateOperator = conditionalUpdateOperator;
   }
 
   public long getNewSegmentTrackingTimeMs() {

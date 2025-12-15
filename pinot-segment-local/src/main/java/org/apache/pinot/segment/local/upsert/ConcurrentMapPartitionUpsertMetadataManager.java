@@ -46,6 +46,11 @@ import org.roaringbitmap.buffer.MutableRoaringBitmap;
 @SuppressWarnings({"rawtypes", "unchecked"})
 @ThreadSafe
 public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUpsertMetadataManager {
+  private enum ComparisonOp {
+    GT, GE, EQ, NE, LT, LE
+  }
+  @Nullable
+  private final ComparisonOp _conditionalOp;
 
   // Used to initialize a reference to previous row for merging in partial upsert
   private final LazyRow _reusePreviousRow = new LazyRow();
@@ -61,6 +66,55 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
   @Override
   protected long getNumPrimaryKeys() {
     return _primaryKeyToRecordLocationMap.size();
+  }
+
+  public ConcurrentMapPartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
+      UpsertContext upsertContext) {
+    super(tableNameWithType, partitionId, upsertContext);
+    _conditionalOp = parseConditionalOperator(upsertContext.getConditionalUpdateOperator());
+  }
+
+  @Nullable
+  private static ComparisonOp parseConditionalOperator(@Nullable String op) {
+    if (op == null || op.isEmpty()) {
+      return ComparisonOp.GE; // default behavior
+    }
+    switch (op.trim()) {
+      case ">":
+        return ComparisonOp.GT;
+      case ">=":
+        return ComparisonOp.GE;
+      case "==":
+        return ComparisonOp.EQ;
+      case "!=":
+        return ComparisonOp.NE;
+      case "<":
+        return ComparisonOp.LT;
+      case "<=":
+        return ComparisonOp.LE;
+      default:
+        return ComparisonOp.GE;
+    }
+  }
+
+  private boolean conditionSatisfied(int comparisonResult) {
+    ComparisonOp op = _conditionalOp != null ? _conditionalOp : ComparisonOp.GE;
+    switch (op) {
+      case GT:
+        return comparisonResult > 0;
+      case GE:
+        return comparisonResult >= 0;
+      case EQ:
+        return comparisonResult == 0;
+      case NE:
+        return comparisonResult != 0;
+      case LT:
+        return comparisonResult < 0;
+      case LE:
+        return comparisonResult <= 0;
+      default:
+        return comparisonResult >= 0;
+    }
   }
 
   @Override
@@ -87,7 +141,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               // Update the record location when there is a tie to keep the newer record. Note that the record info
               // iterator will return records with incremental doc ids.
               if (currentSegment == segment) {
-                if (comparisonResult >= 0) {
+                if (conditionSatisfied(comparisonResult)) {
                   replaceDocId(segment, validDocIds, queryableDocIds, currentDocId, newDocId, recordInfo);
                   return new RecordLocation(segment, newDocId, newComparisonValue);
                 } else {
@@ -102,7 +156,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               // doc ids for the old segment because it has not been replaced yet. We pass in an optional valid doc ids
               // snapshot for the old segment, which can be updated and used to track the docs not replaced yet.
               if (currentSegment == oldSegment) {
-                if (comparisonResult >= 0) {
+                if (conditionSatisfied(comparisonResult)) {
                   if (validDocIdsForOldSegment == null && oldSegment != null && oldSegment.getValidDocIds() != null) {
                     // Update the old segment's bitmap in place if a copy of the bitmap was not provided.
                     replaceDocId(segment, validDocIds, queryableDocIds, oldSegment, currentDocId, newDocId, recordInfo);
@@ -123,7 +177,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               String currentSegmentName = currentSegment.getSegmentName();
               if (currentSegmentName.equals(segmentName)) {
                 numKeysInWrongSegment.getAndIncrement();
-                if (comparisonResult >= 0) {
+                if (conditionSatisfied(comparisonResult)) {
                   addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
                   return new RecordLocation(segment, newDocId, newComparisonValue);
                 } else {
@@ -135,7 +189,8 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
               // Update the record location when getting a newer comparison value, or the value is the same as the
               // current value, but the segment has a larger sequence number (the segment is newer than the current
               // segment).
-              if (comparisonResult > 0 || (comparisonResult == 0 && shouldReplaceOnComparisonTie(segmentName,
+              if ((conditionSatisfied(comparisonResult) && comparisonResult != 0)
+                  || (comparisonResult == 0 && shouldReplaceOnComparisonTie(segmentName,
                   currentSegmentName, getAuthoritativeCreationTime(segment),
                   getAuthoritativeCreationTime(currentSegment)))) {
                 replaceDocId(segment, validDocIds, queryableDocIds, currentSegment, currentDocId, newDocId, recordInfo);
@@ -266,7 +321,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
 
             // Update the record location when the new comparison value is greater than or equal to the current value.
             // Update the record location when there is a tie to keep the newer record.
-            if (newComparisonValue.compareTo(currentRecordLocation.getComparisonValue()) >= 0) {
+            if (conditionSatisfied(newComparisonValue.compareTo(currentRecordLocation.getComparisonValue()))) {
               IndexSegment currentSegment = currentRecordLocation.getSegment();
               int currentDocId = currentRecordLocation.getDocId();
               if (segment == currentSegment) {
@@ -302,7 +357,7 @@ public class ConcurrentMapPartitionUpsertMetadataManager extends BasePartitionUp
           // - New record is not out-of-order
           // - Previous record is not deleted
           if (!recordInfo.isDeleteRecord()
-              && recordInfo.getComparisonValue().compareTo(recordLocation.getComparisonValue()) >= 0) {
+              && conditionSatisfied(recordInfo.getComparisonValue().compareTo(recordLocation.getComparisonValue()))) {
             IndexSegment currentSegment = recordLocation.getSegment();
             ThreadSafeMutableRoaringBitmap currentQueryableDocIds = currentSegment.getQueryableDocIds();
             int currentDocId = recordLocation.getDocId();

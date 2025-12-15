@@ -134,6 +134,7 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
         .setConsistencyMode(upsertConfig.getConsistencyMode())
         .setUpsertViewRefreshIntervalMs(upsertConfig.getUpsertViewRefreshIntervalMs())
         .setNewSegmentTrackingTimeMs(upsertConfig.getNewSegmentTrackingTimeMs())
+        .setConditionalUpdateOperator(upsertConfig.getConditionalUpdateOperator())
         .setMetadataManagerConfigs(upsertConfig.getMetadataManagerConfigs())
         .setAllowPartialUpsertConsumptionDuringCommit(allowPartialUpsertConsumptionDuringCommit)
         .build();
