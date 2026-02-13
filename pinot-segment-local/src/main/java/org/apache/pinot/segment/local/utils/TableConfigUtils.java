@@ -1258,7 +1258,7 @@ public final class TableConfigUtils {
         String column = fieldConfig.getName();
         Preconditions.checkState(schema.hasColumn(column), "Failed to find column: %s in schema", column);
 
-        // Validate DELTA / DELTADELTA compression codecs compatibility
+        // Validate DELTA / DELTADELTA / XOR compression codecs compatibility
         validateGorillaCompressionCodecIfPresent(fieldConfig, schema.getFieldSpecFor(column));
       }
       validateIndexingConfigAndFieldConfigListCompatibility(indexingConfig, fieldConfigs);
@@ -1960,6 +1960,15 @@ public final class TableConfigUtils {
         Preconditions.checkState(storedType == DataType.INT || storedType == DataType.LONG,
             "Compression codec %s can only be used on INT/LONG data types, found %s for column: %s",
             fieldConfig.getCompressionCodec(), storedType, fieldConfig.getName());
+        break;
+      case XOR:
+        Preconditions.checkState(fieldSpec.isSingleValueField(),
+            "Compression codec %s can only be used on single-value columns, found multi-value column: %s",
+            fieldConfig.getCompressionCodec(), fieldConfig.getName());
+        DataType xorStoredType = fieldSpec.getDataType().getStoredType();
+        Preconditions.checkState(xorStoredType == DataType.FLOAT || xorStoredType == DataType.DOUBLE,
+            "Compression codec %s can only be used on FLOAT/DOUBLE data types, found %s for column: %s",
+            fieldConfig.getCompressionCodec(), xorStoredType, fieldConfig.getName());
         break;
       default:
         // no-op for other codecs
