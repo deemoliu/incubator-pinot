@@ -56,10 +56,16 @@ public class FixedByteChunkSVForwardIndexTest implements PinotBuffersAfterMethod
   @DataProvider(name = "combinations")
   public static Object[][] combinations() {
     return Arrays.stream(ChunkCompressionType.values())
-        .filter(t -> t != ChunkCompressionType.DELTA && t != ChunkCompressionType.DELTADELTA)
+        .filter(t -> t != ChunkCompressionType.DELTA && t != ChunkCompressionType.DELTADELTA
+            && t != ChunkCompressionType.XOR)
         .flatMap(chunkCompressionType -> IntStream.of(2, 3, 4)
             .mapToObj(version -> new Object[]{chunkCompressionType, version}))
         .toArray(Object[][]::new);
+  }
+
+  @DataProvider(name = "xorCombinations")
+  public static Object[][] xorCombinations() {
+    return IntStream.of(2, 3, 4).mapToObj(version -> new Object[]{version}).toArray(Object[][]::new);
   }
 
   @Test(dataProvider = "combinations")
@@ -248,6 +254,13 @@ public class FixedByteChunkSVForwardIndexTest implements PinotBuffersAfterMethod
     FileUtils.deleteQuietly(outFileEightByte);
   }
 
+  @Test(dataProvider = "xorCombinations")
+  public void testFloatXorPresizedDecompression(int version)
+      throws Exception {
+    // XOR uses BaseChunkForwardIndexReader pre-sizing path via decompressedLength().
+    testFloat(ChunkCompressionType.XOR, version);
+  }
+
   @Test(dataProvider = "combinations")
   public void testDouble(ChunkCompressionType compressionType, int version)
       throws Exception {
@@ -324,6 +337,13 @@ public class FixedByteChunkSVForwardIndexTest implements PinotBuffersAfterMethod
 
     FileUtils.deleteQuietly(outFileFourByte);
     FileUtils.deleteQuietly(outFileEightByte);
+  }
+
+  @Test(dataProvider = "xorCombinations")
+  public void testDoubleXorPresizedDecompression(int version)
+      throws Exception {
+    // XOR uses BaseChunkForwardIndexReader pre-sizing path via decompressedLength().
+    testDouble(ChunkCompressionType.XOR, version);
   }
 
   /**

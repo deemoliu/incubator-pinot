@@ -1160,6 +1160,8 @@ public class TableConfigUtilsTest {
         .addSingleValueDimension("myCol1", FieldSpec.DataType.STRING)
         .addMultiValueDimension("myCol2", FieldSpec.DataType.INT)
         .addSingleValueDimension("intCol", FieldSpec.DataType.INT)
+        .addSingleValueDimension("floatCol", FieldSpec.DataType.FLOAT)
+        .addSingleValueDimension("doubleCol", FieldSpec.DataType.DOUBLE)
         .build();
     TableConfig tableConfig = new TableConfigBuilder(TableType.OFFLINE).setTableName(TABLE_NAME)
         .setNoDictionaryColumns(Arrays.asList("myCol1"))
@@ -1191,6 +1193,46 @@ public class TableConfigUtilsTest {
     } catch (Exception e) {
       assertEquals(e.getMessage(),
           "Compression codec DELTADELTA can only be used on single-value columns, found multi-value column: myCol2");
+    }
+
+    try {
+      FieldConfig fieldConfig =
+          new FieldConfig("floatCol", FieldConfig.EncodingType.RAW, null, null, CompressionCodec.XOR, null, null);
+      tableConfig.setFieldConfigList(Arrays.asList(fieldConfig));
+      TableConfigUtils.validate(tableConfig, schema);
+    } catch (Exception e) {
+      fail("XOR codec should be valid for single-value FLOAT columns", e);
+    }
+
+    try {
+      FieldConfig fieldConfig =
+          new FieldConfig("doubleCol", FieldConfig.EncodingType.RAW, null, null, CompressionCodec.XOR, null, null);
+      tableConfig.setFieldConfigList(Arrays.asList(fieldConfig));
+      TableConfigUtils.validate(tableConfig, schema);
+    } catch (Exception e) {
+      fail("XOR codec should be valid for single-value DOUBLE columns", e);
+    }
+
+    try {
+      FieldConfig fieldConfig =
+          new FieldConfig("myCol1", FieldConfig.EncodingType.RAW, null, null, CompressionCodec.XOR, null, null);
+      tableConfig.setFieldConfigList(Arrays.asList(fieldConfig));
+      TableConfigUtils.validate(tableConfig, schema);
+      fail("Should fail for non FLOAT/DOUBLE column with XOR codec");
+    } catch (Exception e) {
+      assertEquals(e.getMessage(),
+          "Compression codec XOR can only be used on FLOAT/DOUBLE data types, found STRING for column: myCol1");
+    }
+
+    try {
+      FieldConfig fieldConfig =
+          new FieldConfig("myCol2", FieldConfig.EncodingType.RAW, null, null, CompressionCodec.XOR, null, null);
+      tableConfig.setFieldConfigList(Arrays.asList(fieldConfig));
+      TableConfigUtils.validate(tableConfig, schema);
+      fail("Should fail for multi-value column with XOR codec");
+    } catch (Exception e) {
+      assertEquals(e.getMessage(),
+          "Compression codec XOR can only be used on single-value columns, found multi-value column: myCol2");
     }
 
     try {

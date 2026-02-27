@@ -77,6 +77,9 @@ public class ChunkCompressorFactory {
       case DELTADELTA:
         return DeltaDeltaCompressor.INSTANCE;
 
+      case XOR:
+        return XorCompressor.INSTANCE;
+
       default:
         throw new IllegalArgumentException("Illegal compressor name " + compressionType);
     }
@@ -113,6 +116,9 @@ public class ChunkCompressorFactory {
 
       case DELTADELTA:
         return DeltaDeltaDecompressor.INSTANCE;
+
+      case XOR:
+        return XorDecompressor.INSTANCE;
 
       default:
         throw new IllegalArgumentException("Illegal decompressor name " + compressionType);
