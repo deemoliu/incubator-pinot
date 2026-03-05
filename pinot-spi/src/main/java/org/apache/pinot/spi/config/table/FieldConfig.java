@@ -154,7 +154,7 @@ public class FieldConfig extends BaseJsonConfig {
 
     DELTA(false, false),
     DELTADELTA(false, false),
-    XOR(false, false);
+    XOR(true, false);
 
     //@formatter:on
 
