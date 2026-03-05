@@ -219,10 +219,12 @@ public abstract class BaseChunkForwardIndexReader implements ForwardIndexReader<
     try {
       if (_compressionType == ChunkCompressionType.DELTA || _compressionType == ChunkCompressionType.DELTADELTA
           || _compressionType == ChunkCompressionType.XOR) {
-        // For gorilla compression, pre-size the output using decompressor's length calculation.
+        // For codecs that encode the output element count in the payload, pre-size output from the chunk header.
         ByteBuffer compressedBuffer = _dataBuffer.toDirectByteBuffer(chunkPosition, chunkSize);
         int decompressedSize = _chunkDecompressor.decompressedLength(compressedBuffer);
-        decompressedBuffer = ByteBuffer.allocateDirect(decompressedSize);
+        Preconditions.checkState(decompressedSize <= decompressedBuffer.capacity(),
+            "Decompressed chunk size: %s exceeds context buffer capacity: %s for compression type: %s",
+            decompressedSize, decompressedBuffer.capacity(), _compressionType);
         _chunkDecompressor.decompress(compressedBuffer, decompressedBuffer);
       } else {
         _chunkDecompressor.decompress(_dataBuffer.toDirectByteBuffer(chunkPosition, chunkSize), decompressedBuffer);
