@@ -18,7 +18,7 @@
  */
 package org.apache.pinot.spi.utils.retry;
 
-import java.util.concurrent.ThreadLocalRandom;
+import org.apache.pinot.spi.utils.JitterUtils;
 
 
 /**
@@ -27,7 +27,6 @@ import java.util.concurrent.ThreadLocalRandom;
  * * initialDelayMs and delayScaleFactor<sup>(i + 1)</sup> * initialDelayMs.
  */
 public class ExponentialBackoffRetryPolicy extends BaseRetryPolicy {
-  private final ThreadLocalRandom _random = ThreadLocalRandom.current();
   private final long _initialDelayMs;
   private final double _delayScaleFactor;
 
@@ -41,6 +40,6 @@ public class ExponentialBackoffRetryPolicy extends BaseRetryPolicy {
   protected long getDelayMs(int currentAttempt) {
     long minDelayMs = (long) (_initialDelayMs * Math.pow(_delayScaleFactor, currentAttempt));
     long maxDelayMs = (long) (minDelayMs * _delayScaleFactor);
-    return minDelayMs < maxDelayMs ? _random.nextLong(minDelayMs, maxDelayMs) : minDelayMs;
+    return JitterUtils.randomInRange(minDelayMs, maxDelayMs);
   }
 }

@@ -20,12 +20,12 @@ package org.apache.pinot.controller.helix.core.realtime.segment;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.time.Clock;
-import java.util.Random;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.common.metadata.segment.SegmentZKMetadata;
 import org.apache.pinot.common.protocols.SegmentCompletionProtocol;
 import org.apache.pinot.spi.stream.StreamConfig;
 import org.apache.pinot.spi.utils.CommonConstants.Segment.Realtime.Status;
+import org.apache.pinot.spi.utils.JitterUtils;
 import org.apache.pinot.spi.utils.TimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +39,6 @@ class SizeBasedSegmentFlushThresholdComputer {
   static final double ROWS_MULTIPLIER_WHEN_TIME_THRESHOLD_HIT = 1.1;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SizeBasedSegmentFlushThresholdComputer.class);
-  private static final Random RANDOM = new Random();
 
   private final Clock _clock;
 
@@ -204,8 +203,7 @@ class SizeBasedSegmentFlushThresholdComputer {
     double variance = streamConfig.getFlushThresholdVarianceFraction();
     if (variance > 0) {
       LOGGER.info("Applying variance: {} to segment: {} with target rows: {}", variance, segmentName, targetRows);
-      double variation = (1 - variance) + 2 * variance * RANDOM.nextDouble();
-      targetRows = (long) (targetRows * variation);
+      targetRows = JitterUtils.applyVariance(targetRows, variance);
     }
     int threshold = getThreshold(targetRows);
     LOGGER.info("Setting segment size threshold for: {} to: {}", segmentName, threshold);

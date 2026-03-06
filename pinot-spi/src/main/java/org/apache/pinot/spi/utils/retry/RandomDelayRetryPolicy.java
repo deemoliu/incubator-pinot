@@ -19,14 +19,13 @@
 package org.apache.pinot.spi.utils.retry;
 
 import com.google.common.base.Preconditions;
-import java.util.Random;
+import org.apache.pinot.spi.utils.JitterUtils;
 
 
 /**
  * Delay policy with random delay between attempts.
  */
 public class RandomDelayRetryPolicy extends BaseRetryPolicy {
-  private final static Random RANDOM = new Random(System.currentTimeMillis());
   private final long _minDelayMs;
   private final long _maxDelayMs;
 
@@ -39,6 +38,6 @@ public class RandomDelayRetryPolicy extends BaseRetryPolicy {
 
   @Override
   protected long getDelayMs(int currentAttempt) {
-    return _minDelayMs + (long) (RANDOM.nextDouble() * (_maxDelayMs - _minDelayMs));
+    return JitterUtils.randomInRange(_minDelayMs, _maxDelayMs);
   }
 }

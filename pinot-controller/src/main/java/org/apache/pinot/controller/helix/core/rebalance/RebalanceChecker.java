@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import org.apache.pinot.spi.utils.JitterUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.common.exception.RebalanceInProgressException;
@@ -209,10 +209,7 @@ public class RebalanceChecker extends ControllerPeriodicTask<Void> {
     // The attemptId starts from 1, so minus one as the exponent.
     double minDelayMs = initDelayMs * Math.pow(RETRY_DELAY_SCALE_FACTOR, attemptId - 1);
     double maxDelayMs = minDelayMs * RETRY_DELAY_SCALE_FACTOR;
-    if (maxDelayMs > minDelayMs) {
-      return ThreadLocalRandom.current().nextLong((long) minDelayMs, (long) maxDelayMs);
-    }
-    return (long) minDelayMs;
+    return JitterUtils.randomInRange((long) minDelayMs, (long) maxDelayMs);
   }
 
   @VisibleForTesting
