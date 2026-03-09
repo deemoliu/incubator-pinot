@@ -1,0 +1,420 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.pinot.segment.local.upsert;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
+import org.apache.pinot.common.metrics.ServerMeter;
+import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImpl;
+import org.apache.pinot.segment.local.segment.readers.LazyRow;
+import org.apache.pinot.segment.local.upsert.trie.InMemoryTrie;
+import org.apache.pinot.segment.local.utils.HashUtils;
+import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.segment.spi.MutableSegment;
+import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
+import org.apache.pinot.spi.data.readers.GenericRow;
+import org.apache.pinot.spi.data.readers.PrimaryKey;
+import org.apache.pinot.spi.utils.ByteArray;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
+
+
+/**
+ * Implementation of {@link PartitionUpsertMetadataManager} backed by an {@link InMemoryTrie}.
+ * This provides memory-efficient primary key storage through prefix sharing, particularly
+ * beneficial when {@code HashFunction.NONE} is used (keys share prefixes).
+ */
+@SuppressWarnings({"rawtypes", "unchecked"})
+@ThreadSafe
+public class TriePartitionUpsertMetadataManager extends BasePartitionUpsertMetadataManager {
+
+  // Used to initialize a reference to previous row for merging in partial upsert
+  private final LazyRow _reusePreviousRow = new LazyRow();
+  private final Map<String, Object> _reuseMergeResultHolder = new HashMap<>();
+
+  @VisibleForTesting
+  final InMemoryTrie<RecordLocation> _primaryKeyTrie = new InMemoryTrie<>();
+
+  private final ConcurrentHashMap<ByteArray, RecordLocation> _previousKeyToRecordLocationMap =
+      new ConcurrentHashMap<>();
+  private final Map<ByteArray, RecordLocation> _newlyAddedKeys = new ConcurrentHashMap<>();
+
+  public TriePartitionUpsertMetadataManager(String tableNameWithType, int partitionId, UpsertContext context) {
+    super(tableNameWithType, partitionId, context);
+  }
+
+  @Override
+  protected long getNumPrimaryKeys() {
+    return _primaryKeyTrie.size();
+  }
+
+  @Override
+  protected void doAddOrReplaceSegment(ImmutableSegmentImpl segment, ThreadSafeMutableRoaringBitmap validDocIds,
+      @Nullable ThreadSafeMutableRoaringBitmap queryableDocIds, Iterator<RecordInfo> recordInfoIterator,
+      @Nullable IndexSegment oldSegment, @Nullable MutableRoaringBitmap validDocIdsForOldSegment) {
+    String segmentName = segment.getSegmentName();
+    segment.enableUpsert(this, validDocIds, queryableDocIds);
+
+    AtomicInteger numKeysInWrongSegment = new AtomicInteger();
+    while (recordInfoIterator.hasNext()) {
+      RecordInfo recordInfo = recordInfoIterator.next();
+      int newDocId = recordInfo.getDocId();
+      Comparable newComparisonValue = recordInfo.getComparisonValue();
+      byte[] keyBytes = HashUtils.hashPrimaryKeyToBytes(recordInfo.getPrimaryKey(), _hashFunction);
+      ByteArray keyWrapper = new ByteArray(keyBytes);
+
+      _primaryKeyTrie.compute(keyBytes, (primaryKey, currentRecordLocation) -> {
+        if (currentRecordLocation != null) {
+          // Existing primary key
+          IndexSegment currentSegment = currentRecordLocation.getSegment();
+          int currentDocId = currentRecordLocation.getDocId();
+          int comparisonResult = newComparisonValue.compareTo(currentRecordLocation.getComparisonValue());
+
+          // The current record is in the same segment
+          if (currentSegment == segment) {
+            if (comparisonResult >= 0) {
+              replaceDocId(segment, validDocIds, queryableDocIds, currentDocId, newDocId, recordInfo);
+              RecordLocation newRecordLocation = new RecordLocation(segment, newDocId, newComparisonValue);
+              if (_newlyAddedKeys.containsKey(keyWrapper)) {
+                _newlyAddedKeys.put(keyWrapper, newRecordLocation);
+              }
+              return newRecordLocation;
+            } else {
+              return currentRecordLocation;
+            }
+          }
+
+          // The current record is in an old segment being replaced
+          if (currentSegment == oldSegment) {
+            if (comparisonResult >= 0) {
+              if (validDocIdsForOldSegment == null && oldSegment != null && oldSegment.getValidDocIds() != null) {
+                replaceDocId(segment, validDocIds, queryableDocIds, oldSegment, currentDocId, newDocId, recordInfo);
+              } else {
+                addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
+                if (validDocIdsForOldSegment != null) {
+                  validDocIdsForOldSegment.remove(currentDocId);
+                }
+              }
+              return new RecordLocation(segment, newDocId, newComparisonValue);
+            } else {
+              return currentRecordLocation;
+            }
+          }
+
+          // Key found in wrong segment (previously replaced segment)
+          String currentSegmentName = currentSegment.getSegmentName();
+          if (currentSegmentName.equals(segmentName)) {
+            numKeysInWrongSegment.getAndIncrement();
+            if (comparisonResult >= 0) {
+              addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
+              return new RecordLocation(segment, newDocId, newComparisonValue);
+            } else {
+              return currentRecordLocation;
+            }
+          }
+
+          // The current record is in a different segment
+          if (comparisonResult > 0 || (comparisonResult == 0 && shouldReplaceOnComparisonTie(segmentName,
+              currentSegmentName, getAuthoritativeCreationTime(segment),
+              getAuthoritativeCreationTime(currentSegment)))) {
+            replaceDocId(segment, validDocIds, queryableDocIds, currentSegment, currentDocId, newDocId, recordInfo);
+            if (currentSegment != segment) {
+              _previousKeyToRecordLocationMap.put(keyWrapper, currentRecordLocation);
+            }
+            return new RecordLocation(segment, newDocId, newComparisonValue);
+          } else {
+            return currentRecordLocation;
+          }
+        } else {
+          // New primary key
+          addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
+          RecordLocation newRecordLocation = new RecordLocation(segment, newDocId, newComparisonValue);
+          _newlyAddedKeys.put(keyWrapper, newRecordLocation);
+          return newRecordLocation;
+        }
+      });
+    }
+    int numKeys = numKeysInWrongSegment.get();
+    if (numKeys > 0) {
+      _logger.warn("Found {} primary keys in the wrong segment when adding segment: {}", numKeys, segmentName);
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.UPSERT_KEYS_IN_WRONG_SEGMENT, numKeys);
+    }
+  }
+
+  @Override
+  protected void addSegmentWithoutUpsert(ImmutableSegmentImpl segment, ThreadSafeMutableRoaringBitmap validDocIds,
+      @Nullable ThreadSafeMutableRoaringBitmap queryableDocIds, Iterator<RecordInfo> recordInfoIterator) {
+    segment.enableUpsert(this, validDocIds, queryableDocIds);
+    while (recordInfoIterator.hasNext()) {
+      RecordInfo recordInfo = recordInfoIterator.next();
+      int newDocId = recordInfo.getDocId();
+      Comparable newComparisonValue = recordInfo.getComparisonValue();
+      addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
+      byte[] keyBytes = HashUtils.hashPrimaryKeyToBytes(recordInfo.getPrimaryKey(), _hashFunction);
+      _primaryKeyTrie.put(keyBytes, new RecordLocation(segment, newDocId, newComparisonValue));
+    }
+  }
+
+  @Override
+  protected void removeSegment(IndexSegment segment, Iterator<PrimaryKey> primaryKeyIterator) {
+    while (primaryKeyIterator.hasNext()) {
+      PrimaryKey primaryKey = primaryKeyIterator.next();
+      byte[] keyBytes = HashUtils.hashPrimaryKeyToBytes(primaryKey, _hashFunction);
+      _primaryKeyTrie.computeIfPresent(keyBytes, (pk, recordLocation) -> {
+        if (recordLocation.getSegment() == segment) {
+          return null;
+        }
+        return recordLocation;
+      });
+    }
+  }
+
+  @Override
+  public void doRemoveExpiredPrimaryKeys() {
+    AtomicInteger numMetadataTTLKeysRemoved = new AtomicInteger();
+    AtomicInteger numDeletedTTLKeysRemoved = new AtomicInteger();
+    AtomicInteger numTotalKeysMarkForDeletion = new AtomicInteger();
+    AtomicInteger numDeletedKeysWithinTTLWindow = new AtomicInteger();
+    double largestSeenComparisonValue = _largestSeenComparisonValue.get();
+    double metadataTTLKeysThreshold =
+        _metadataTTL > 0 ? largestSeenComparisonValue - _metadataTTL : Double.NEGATIVE_INFINITY;
+    double deletedKeysThreshold =
+        _deletedKeysTTL > 0 ? largestSeenComparisonValue - _deletedKeysTTL : Double.NEGATIVE_INFINITY;
+
+    // Collect keys to remove (cannot modify trie while iterating with forEach)
+    Map<byte[], RecordLocation> keysToRemove = new HashMap<>();
+    Map<byte[], RecordLocation> deletedKeysToRemove = new HashMap<>();
+
+    _primaryKeyTrie.forEach((keyBytes, recordLocation) -> {
+      double comparisonValue = ((Number) recordLocation.getComparisonValue()).doubleValue();
+      if (_metadataTTL > 0 && comparisonValue < metadataTTLKeysThreshold) {
+        keysToRemove.put(keyBytes, recordLocation);
+        numMetadataTTLKeysRemoved.getAndIncrement();
+      } else if (_deletedKeysTTL > 0) {
+        ThreadSafeMutableRoaringBitmap currentQueryableDocIds = recordLocation.getSegment().getQueryableDocIds();
+        if (currentQueryableDocIds != null && !currentQueryableDocIds.contains(recordLocation.getDocId())) {
+          numTotalKeysMarkForDeletion.getAndIncrement();
+          if (comparisonValue >= deletedKeysThreshold) {
+            numDeletedKeysWithinTTLWindow.getAndIncrement();
+          } else {
+            deletedKeysToRemove.put(keyBytes, recordLocation);
+            numDeletedTTLKeysRemoved.getAndIncrement();
+          }
+        }
+      }
+    });
+
+    // Apply removals
+    for (Map.Entry<byte[], RecordLocation> entry : keysToRemove.entrySet()) {
+      _primaryKeyTrie.remove(entry.getKey(), entry.getValue());
+    }
+    for (Map.Entry<byte[], RecordLocation> entry : deletedKeysToRemove.entrySet()) {
+      if (_primaryKeyTrie.remove(entry.getKey(), entry.getValue())) {
+        removeDocId(entry.getValue().getSegment(), entry.getValue().getDocId());
+      }
+    }
+
+    // Update metrics
+    updatePrimaryKeyGauge();
+    int numMetadataTTLKeys = numMetadataTTLKeysRemoved.get();
+    if (numMetadataTTLKeys > 0) {
+      _logger.info("Deleted {} primary keys based on metadataTTL", numMetadataTTLKeys);
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.METADATA_TTL_PRIMARY_KEYS_REMOVED,
+          numMetadataTTLKeys);
+    }
+    int numDeletedTTLKeys = numDeletedTTLKeysRemoved.get();
+    if (numDeletedTTLKeys > 0) {
+      _logger.info("Deleted {} primary keys based on deletedKeysTTL", numDeletedTTLKeys);
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.DELETED_KEYS_TTL_PRIMARY_KEYS_REMOVED,
+          numDeletedTTLKeys);
+    }
+    int numTotalKeysMarkedForDeletion = numTotalKeysMarkForDeletion.get();
+    if (numTotalKeysMarkedForDeletion > 0) {
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.TOTAL_KEYS_MARKED_FOR_DELETION,
+          numTotalKeysMarkedForDeletion);
+    }
+    int numDeletedKeysWithinTTLWindowValue = numDeletedKeysWithinTTLWindow.get();
+    if (numDeletedKeysWithinTTLWindowValue > 0) {
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.DELETED_KEYS_WITHIN_TTL_WINDOW,
+          numDeletedKeysWithinTTLWindowValue);
+    }
+  }
+
+  @Override
+  protected void revertCurrentSegmentUpsertMetadata(IndexSegment oldSegment, ThreadSafeMutableRoaringBitmap validDocIds,
+      ThreadSafeMutableRoaringBitmap queryableDocIds) {
+    _logger.info("Reverting Upsert metadata for {} keys for the segment: {}", _previousKeyToRecordLocationMap.size(),
+        oldSegment.getSegmentName());
+    for (Map.Entry<ByteArray, RecordLocation> entry : _previousKeyToRecordLocationMap.entrySet()) {
+      IndexSegment prevSegment = entry.getValue().getSegment();
+      byte[] keyBytes = entry.getKey().getBytes();
+      RecordLocation currentLocation = _primaryKeyTrie.get(keyBytes);
+      if (prevSegment != null) {
+        if (currentLocation != null && currentLocation.getSegment() == oldSegment) {
+          try (UpsertUtils.RecordInfoReader recordInfoReader = new UpsertUtils.RecordInfoReader(prevSegment,
+              _primaryKeyColumns, _comparisonColumns, _deleteRecordColumn)) {
+            int newDocId = entry.getValue().getDocId();
+            int currentDocId = currentLocation.getDocId();
+            RecordInfo recordInfo = recordInfoReader.getRecordInfo(newDocId);
+            replaceDocId(prevSegment, prevSegment.getValidDocIds(), prevSegment.getQueryableDocIds(), oldSegment,
+                currentDocId, newDocId, recordInfo);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+          _primaryKeyTrie.put(keyBytes, entry.getValue());
+        }
+      } else {
+        _primaryKeyTrie.remove(keyBytes);
+      }
+    }
+    _logger.info("Reverted Upsert metadata of {} keys to previous segment locations for the segment: {}",
+        _previousKeyToRecordLocationMap.size(), oldSegment.getSegmentName());
+    removeNewlyAddedKeys(oldSegment);
+  }
+
+  @Override
+  protected void removeNewlyAddedKeys(IndexSegment oldSegment) {
+    int removedKeys = 0;
+    for (Map.Entry<ByteArray, RecordLocation> entry : _newlyAddedKeys.entrySet()) {
+      if (entry.getValue().getSegment() == oldSegment) {
+        _primaryKeyTrie.remove(entry.getKey().getBytes());
+        removeDocId(oldSegment, entry.getValue().getDocId());
+        removedKeys++;
+      }
+    }
+    _logger.info("Removed newly added {} keys for the segment: {} out of : {}", removedKeys,
+        oldSegment.getSegmentName(), _previousKeyToRecordLocationMap.size());
+  }
+
+  @Override
+  protected void eraseKeyToPreviousLocationMap() {
+    _previousKeyToRecordLocationMap.clear();
+    _newlyAddedKeys.clear();
+  }
+
+  @Override
+  protected boolean doAddRecord(MutableSegment segment, RecordInfo recordInfo) {
+    AtomicBoolean isOutOfOrderRecord = new AtomicBoolean(false);
+    ThreadSafeMutableRoaringBitmap validDocIds = Objects.requireNonNull(segment.getValidDocIds());
+    ThreadSafeMutableRoaringBitmap queryableDocIds = segment.getQueryableDocIds();
+    int newDocId = recordInfo.getDocId();
+    Comparable newComparisonValue = recordInfo.getComparisonValue();
+
+    // When TTL is enabled, update largestSeenComparisonValue when adding new record
+    if (isTTLEnabled()) {
+      double comparisonValue = ((Number) newComparisonValue).doubleValue();
+      _largestSeenComparisonValue.getAndUpdate(v -> Math.max(v, comparisonValue));
+    }
+
+    byte[] keyBytes = HashUtils.hashPrimaryKeyToBytes(recordInfo.getPrimaryKey(), _hashFunction);
+    ByteArray keyWrapper = new ByteArray(keyBytes);
+
+    _primaryKeyTrie.compute(keyBytes, (primaryKey, currentRecordLocation) -> {
+      if (currentRecordLocation != null) {
+        // Existing primary key
+        IndexSegment currentSegment = currentRecordLocation.getSegment();
+        if (newComparisonValue.compareTo(currentRecordLocation.getComparisonValue()) >= 0) {
+          int currentDocId = currentRecordLocation.getDocId();
+          RecordLocation newRecordLocation = new RecordLocation(segment, newDocId, newComparisonValue);
+          if (segment == currentSegment) {
+            replaceDocId(segment, validDocIds, queryableDocIds, currentDocId, newDocId, recordInfo);
+            if (_newlyAddedKeys.containsKey(keyWrapper)) {
+              _newlyAddedKeys.put(keyWrapper, newRecordLocation);
+            }
+          } else {
+            _previousKeyToRecordLocationMap.put(keyWrapper, currentRecordLocation);
+            replaceDocId(segment, validDocIds, queryableDocIds, currentSegment, currentDocId, newDocId, recordInfo);
+          }
+          return newRecordLocation;
+        } else {
+          if (segment != currentSegment) {
+            _previousKeyToRecordLocationMap.put(keyWrapper, currentRecordLocation);
+          }
+          handleOutOfOrderEvent(currentRecordLocation.getComparisonValue(), recordInfo.getComparisonValue());
+          isOutOfOrderRecord.set(true);
+          return currentRecordLocation;
+        }
+      } else {
+        // New primary key
+        addDocId(segment, validDocIds, queryableDocIds, newDocId, recordInfo);
+        RecordLocation newRecordLocation = new RecordLocation(segment, newDocId, newComparisonValue);
+        _newlyAddedKeys.put(keyWrapper, newRecordLocation);
+        return newRecordLocation;
+      }
+    });
+
+    updatePrimaryKeyGauge();
+    return !isOutOfOrderRecord.get();
+  }
+
+  @Override
+  protected GenericRow doUpdateRecord(GenericRow record, RecordInfo recordInfo) {
+    assert _partialUpsertHandler != null;
+    byte[] keyBytes = HashUtils.hashPrimaryKeyToBytes(recordInfo.getPrimaryKey(), _hashFunction);
+
+    _primaryKeyTrie.computeIfPresent(keyBytes, (pk, recordLocation) -> {
+      if (!recordInfo.isDeleteRecord()
+          && recordInfo.getComparisonValue().compareTo(recordLocation.getComparisonValue()) >= 0) {
+        IndexSegment currentSegment = recordLocation.getSegment();
+        ThreadSafeMutableRoaringBitmap currentQueryableDocIds = currentSegment.getQueryableDocIds();
+        int currentDocId = recordLocation.getDocId();
+        if (currentQueryableDocIds == null || currentQueryableDocIds.contains(currentDocId)) {
+          _reusePreviousRow.init(currentSegment, currentDocId);
+          _partialUpsertHandler.merge(_reusePreviousRow, record, _reuseMergeResultHolder);
+          _reuseMergeResultHolder.clear();
+        }
+      }
+      return recordLocation;
+    });
+    return record;
+  }
+
+  @VisibleForTesting
+  static class RecordLocation {
+    private final IndexSegment _segment;
+    private final int _docId;
+    private final Comparable _comparisonValue;
+
+    public RecordLocation(IndexSegment indexSegment, int docId, Comparable comparisonValue) {
+      _segment = indexSegment;
+      _docId = docId;
+      _comparisonValue = comparisonValue;
+    }
+
+    public IndexSegment getSegment() {
+      return _segment;
+    }
+
+    public int getDocId() {
+      return _docId;
+    }
+
+    public Comparable getComparisonValue() {
+      return _comparisonValue;
+    }
+  }
+}

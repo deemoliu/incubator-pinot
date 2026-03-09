@@ -89,6 +89,29 @@ public class HashUtils {
     return buf.array();
   }
 
+  /**
+   * Hashes the primary key to a byte[] directly, without wrapping in ByteArray.
+   * Useful for trie-based data structures that operate on raw byte arrays.
+   */
+  public static byte[] hashPrimaryKeyToBytes(PrimaryKey primaryKey, HashFunction hashFunction) {
+    switch (hashFunction) {
+      case NONE:
+        return primaryKey.asBytes();
+      case MD5:
+        return hashMD5(primaryKey.asBytes());
+      case MURMUR3:
+        return hashMurmur3(primaryKey.asBytes());
+      case UUID:
+        return hashUUID(primaryKey);
+      case XXHASH:
+        return hashXXHash(primaryKey.asBytes());
+      case XXH128:
+        return hashXXH128(primaryKey.asBytes());
+      default:
+        throw new IllegalArgumentException(String.format("Unrecognized hash function %s", hashFunction));
+    }
+  }
+
   public static Object hashPrimaryKey(PrimaryKey primaryKey, HashFunction hashFunction) {
     switch (hashFunction) {
       case NONE:
