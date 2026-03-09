@@ -43,6 +43,41 @@ public class ChunkCompressorFactory {
   }
 
   /**
+   * Returns the chunk compressor for the specified name with optional type-hints for fixed-width writers.
+   *
+   * @param compressionType Type of compressor.
+   * @param fixedWidth whether the input entries are fixed-width.
+   * @param sizeOfEntry size of each entry in bytes.
+   * @return Compressor for the specified type.
+   */
+  public static ChunkCompressor getCompressor(ChunkCompressionType compressionType, boolean fixedWidth,
+      int sizeOfEntry) {
+    if (fixedWidth) {
+      switch (compressionType) {
+        case DELTA:
+          if (sizeOfEntry == Integer.BYTES) {
+            return DeltaCompressor.INT_INSTANCE;
+          }
+          if (sizeOfEntry == Long.BYTES) {
+            return DeltaCompressor.LONG_INSTANCE;
+          }
+          break;
+        case DELTADELTA:
+          if (sizeOfEntry == Integer.BYTES) {
+            return DeltaDeltaCompressor.INT_INSTANCE;
+          }
+          if (sizeOfEntry == Long.BYTES) {
+            return DeltaDeltaCompressor.LONG_INSTANCE;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    return getCompressor(compressionType, false);
+  }
+
+  /**
    * Returns the chunk compressor for the specified name.
    *
    * @param compressionType Type of compressor.

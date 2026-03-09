@@ -565,8 +565,10 @@ public class ForwardIndexHandler extends BaseIndexHandler {
       ColumnMetadata existingColumnMetadata, ForwardIndexReader<C> reader, ForwardIndexCreator creator, int numDocs) {
     C readerContext = reader.createContext();
     boolean isSVColumn = reader.isSingleValue();
+    // Use column metadata type to keep read/write width consistent during rewrite.
+    DataType storedType = existingColumnMetadata.getDataType().getStoredType();
 
-    switch (reader.getStoredType()) {
+    switch (storedType) {
       // JSON fields are either stored as string or bytes. No special handling is needed because we make this
       // decision based on the storedType of the reader.
       case INT: {
@@ -661,7 +663,7 @@ public class ForwardIndexHandler extends BaseIndexHandler {
         break;
       }
       default:
-        throw new IllegalStateException("Unsupported storedType=" + reader.getStoredType() + " for column=" + column);
+        throw new IllegalStateException("Unsupported storedType=" + storedType + " for column=" + column);
     }
   }
 

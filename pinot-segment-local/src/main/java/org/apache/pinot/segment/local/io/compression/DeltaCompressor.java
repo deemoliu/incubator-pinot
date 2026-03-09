@@ -31,12 +31,16 @@ import org.apache.pinot.segment.spi.compression.ChunkCompressor;
  */
 class DeltaCompressor implements ChunkCompressor {
 
-  static final DeltaCompressor INSTANCE = new DeltaCompressor();
-  static final LZ4Factory LZ4_FACTORY = LZ4Factory.fastestInstance();
   private static final byte INT_FLAG = 0;
   private static final byte LONG_FLAG = 1;
+  static final DeltaCompressor INSTANCE = new DeltaCompressor(null);
+  static final DeltaCompressor INT_INSTANCE = new DeltaCompressor(INT_FLAG);
+  static final DeltaCompressor LONG_INSTANCE = new DeltaCompressor(LONG_FLAG);
+  static final LZ4Factory LZ4_FACTORY = LZ4Factory.fastestInstance();
+  private final Byte _forcedTypeFlag;
 
-  private DeltaCompressor() {
+  private DeltaCompressor(Byte forcedTypeFlag) {
+    _forcedTypeFlag = forcedTypeFlag;
   }
 
   @Override
@@ -48,6 +52,14 @@ class DeltaCompressor implements ChunkCompressor {
     int remaining = inUncompressed.remaining();
     if (remaining % Integer.BYTES != 0) {
       throw new IOException("Invalid input size: must be multiple of 4 bytes for INT or 8 bytes for LONG");
+    }
+    if (_forcedTypeFlag != null) {
+      if (_forcedTypeFlag == INT_FLAG) {
+        outCompressed.put(INT_FLAG);
+        return compressForInt(inUncompressed, outCompressed, outStartPosition);
+      }
+      outCompressed.put(LONG_FLAG);
+      return compressForLong(inUncompressed, outCompressed, outStartPosition);
     }
     if (remaining % Long.BYTES != 0) {
       outCompressed.put(INT_FLAG);
@@ -168,6 +180,30 @@ class DeltaCompressor implements ChunkCompressor {
     if (uncompressedSize % Integer.BYTES != 0) {
       throw new IllegalArgumentException("Invalid input size: must be multiple of 4 bytes for INT or 8 bytes for LONG");
     }
+    if (_forcedTypeFlag != null) {
+      if (_forcedTypeFlag == INT_FLAG) {
+        int numIntegers = uncompressedSize / Integer.BYTES;
+        if (numIntegers == 0) {
+          return baseSize + 4; // flag + numIntegers
+        }
+        if (numIntegers == 1) {
+          return baseSize + 8; // flag + numIntegers + one int value
+        }
+        int deltaSize = (numIntegers - 1) * Integer.BYTES;
+        return baseSize + 12 + LZ4_FACTORY.fastCompressor()
+            .maxCompressedLength(deltaSize);
+      }
+      int numLongs = uncompressedSize / Long.BYTES;
+      if (numLongs == 0) {
+        return baseSize + 4; // flag + numLongs
+      }
+      if (numLongs == 1) {
+        return baseSize + 12; // flag + numLongs + one long value
+      }
+      int deltaSize = (numLongs - 1) * Long.BYTES;
+      return baseSize + 16 + LZ4_FACTORY.fastCompressor()
+          .maxCompressedLength(deltaSize);
+    }
     if (uncompressedSize % Long.BYTES != 0) {
       int numIntegers = uncompressedSize / Integer.BYTES;
       if (numIntegers == 0) {
@@ -176,7 +212,7 @@ class DeltaCompressor implements ChunkCompressor {
       if (numIntegers == 1) {
         return baseSize + 8; // flag + numIntegers + one int value
       }
-      int deltaSize = (numIntegers - 1) * Long.BYTES;
+      int deltaSize = (numIntegers - 1) * Integer.BYTES;
       return baseSize + 12 + LZ4_FACTORY.fastCompressor()
           .maxCompressedLength(deltaSize); // flag + numIntegers + first int value + compressed size + compressed data
     }

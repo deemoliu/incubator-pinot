@@ -92,7 +92,7 @@ public abstract class BaseChunkForwardIndexWriter implements Closeable {
         "Illegal version: %s for %s bytes values", version, fixed ? "fixed" : "variable");
     Preconditions.checkArgument(chunkSize <= Integer.MAX_VALUE, "Chunk size limited to 2GB");
     _chunkSize = (int) chunkSize;
-    _chunkCompressor = ChunkCompressorFactory.getCompressor(compressionType);
+    _chunkCompressor = ChunkCompressorFactory.getCompressor(compressionType, fixed, sizeOfEntry);
     _headerEntryChunkOffsetSize = version == 2 ? Integer.BYTES : Long.BYTES;
     _dataOffset = writeHeader(compressionType, totalDocs, numDocsPerChunk, sizeOfEntry, version);
     _chunkBuffer = ByteBuffer.allocateDirect(_chunkSize);
@@ -100,6 +100,7 @@ public abstract class BaseChunkForwardIndexWriter implements Closeable {
     _compressedBuffer = ByteBuffer.allocateDirect(maxCompressedChunkSize);
     _dataFile = new RandomAccessFile(file, "rw").getChannel();
   }
+
 
   @Override
   public void close()

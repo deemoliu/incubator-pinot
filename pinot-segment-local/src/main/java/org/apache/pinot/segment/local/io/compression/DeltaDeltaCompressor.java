@@ -32,12 +32,16 @@ import org.apache.pinot.segment.spi.compression.ChunkCompressor;
  */
 class DeltaDeltaCompressor implements ChunkCompressor {
 
-  static final DeltaDeltaCompressor INSTANCE = new DeltaDeltaCompressor();
-  static final LZ4Factory LZ4_FACTORY = LZ4Factory.fastestInstance();
   private static final byte INT_FLAG = 0;
   private static final byte LONG_FLAG = 1;
+  static final DeltaDeltaCompressor INSTANCE = new DeltaDeltaCompressor(null);
+  static final DeltaDeltaCompressor INT_INSTANCE = new DeltaDeltaCompressor(INT_FLAG);
+  static final DeltaDeltaCompressor LONG_INSTANCE = new DeltaDeltaCompressor(LONG_FLAG);
+  static final LZ4Factory LZ4_FACTORY = LZ4Factory.fastestInstance();
+  private final Byte _forcedTypeFlag;
 
-  private DeltaDeltaCompressor() {
+  private DeltaDeltaCompressor(Byte forcedTypeFlag) {
+    _forcedTypeFlag = forcedTypeFlag;
   }
 
   /**
@@ -61,6 +65,12 @@ class DeltaDeltaCompressor implements ChunkCompressor {
     int remaining = inUncompressed.remaining();
     if (remaining % Integer.BYTES != 0) {
       throw new IOException("Invalid input size: must be multiple of 4 bytes for INT or 8 bytes for LONG");
+    }
+    if (_forcedTypeFlag != null) {
+      if (_forcedTypeFlag == INT_FLAG) {
+        return compressForInt(inUncompressed, outCompressed, outStartPosition);
+      }
+      return compressForLong(inUncompressed, outCompressed, outStartPosition);
     }
     if (remaining % Long.BYTES != 0) {
       return compressForInt(inUncompressed, outCompressed, outStartPosition);
@@ -199,6 +209,28 @@ class DeltaDeltaCompressor implements ChunkCompressor {
 
     if (uncompressedSize % Integer.BYTES != 0) {
       throw new IllegalArgumentException("Invalid input size: must be multiple of 4 bytes for INT or 8 bytes for LONG");
+    }
+    if (_forcedTypeFlag != null) {
+      if (_forcedTypeFlag == INT_FLAG) {
+        int numIntegers = uncompressedSize / Integer.BYTES;
+        if (numIntegers == 0) {
+          return flagSize + 4; // flag + num of Integers
+        }
+        if (numIntegers == 1) {
+          return flagSize + 8; // flag + num of Integers + one integers value
+        }
+        int deltaSize = (numIntegers - 1) * Integer.BYTES;
+        return flagSize + 12 + LZ4_FACTORY.fastCompressor().maxCompressedLength(deltaSize);
+      }
+      int numLongs = uncompressedSize / Long.BYTES;
+      if (numLongs == 0) {
+        return flagSize + 4; // flag + num of Longs
+      }
+      if (numLongs == 1) {
+        return flagSize + 12; // flag + num of Longs + one long value
+      }
+      int deltaSize = (numLongs - 1) * Long.BYTES;
+      return flagSize + 16 + LZ4_FACTORY.fastCompressor().maxCompressedLength(deltaSize);
     }
     if (uncompressedSize % Long.BYTES != 0) {
       int numIntegers = uncompressedSize / Integer.BYTES;

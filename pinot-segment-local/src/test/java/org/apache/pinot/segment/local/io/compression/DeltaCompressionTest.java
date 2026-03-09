@@ -225,4 +225,35 @@ public class DeltaCompressionTest {
       }
     }
   }
+
+  @Test
+  public void testRoundTripLongWithFixedWidthTypeHint()
+      throws IOException {
+    long[] values = new long[1024];
+    for (int i = 0; i < values.length; i++) {
+      values[i] = (i % 10 == 0) ? 1001L : i;
+    }
+
+    ByteBuffer input = ByteBuffer.allocateDirect(values.length * Long.BYTES);
+    for (long value : values) {
+      input.putLong(value);
+    }
+    input.flip();
+
+    try (ChunkCompressor compressor =
+        ChunkCompressorFactory.getCompressor(ChunkCompressionType.DELTA, true, Long.BYTES)) {
+      ByteBuffer compressed = ByteBuffer.allocateDirect(compressor.maxCompressedSize(input.limit()));
+      compressor.compress(input.slice(), compressed);
+
+      try (ChunkDecompressor decompressor = ChunkCompressorFactory.getDecompressor(ChunkCompressionType.DELTA)) {
+        int decompressedSize = decompressor.decompressedLength(compressed);
+        ByteBuffer decompressed = ByteBuffer.allocateDirect(decompressedSize);
+        int actualSize = decompressor.decompress(compressed, decompressed);
+        assertEquals(actualSize, values.length * Long.BYTES);
+        for (long expected : values) {
+          assertEquals(decompressed.getLong(), expected);
+        }
+      }
+    }
+  }
 }
